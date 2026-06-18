@@ -32,4 +32,23 @@ For Scryer, this becomes a responsive web app:
 - tablet: two-pane/focus workflow with collapsible sidebar
 - phone: single active pane, quick-switcher, notification inbox, and task/agent status cards
 
-This repo is intentionally skeletal until we decide the first surface and stack.
+## Running locally
+
+```bash
+npm install
+npm run dev
+```
+
+The Vite dev server defaults to `http://127.0.0.1:43218`.
+
+## Current status
+
+The repo now contains the first React prototype:
+
+- cmux-like desktop workspace sidebar and pane grid
+- browser/terminal/notes pane mocks
+- attention rings and notification inbox
+- mobile single-pane mode with bottom navigation and terminal shortcut keys
+- command palette shell
+
+See [`docs/architecture.md`](docs/architecture.md) for the terminal renderer decision and future `/api/cmux/*` contract.
