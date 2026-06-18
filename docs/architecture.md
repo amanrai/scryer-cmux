@@ -1,86 +1,67 @@
-# scryer-cmux architecture
+# smux architecture
 
-`scryer-cmux` is a browser-native, mobile-capable cmux-inspired surface for Scryer. It preserves cmux's useful primitives — observable panes, attention state, terminal/browser surfaces, workspace metadata, and scriptable orchestration — without assuming a native macOS shell.
+`smux` is a browser-native, mobile-capable cmux-inspired terminal surface for Scryer.
 
-## Current implementation
+The target is intentionally narrow and clean:
 
-The first implementation is a React + TypeScript + Vite frontend prototype.
+- desktop: vertical workspace sidebar + terminal pane
+- mobile: focused terminal pane + terminal shortcut keys
+- no inline browser
+- no notifications
+- no Claude Code Teams integration
+- no dashboard/status-card extras
 
-- Dev port: `43218`
-- Existing PM API: `43210`
-- Future `scryer-cmux` BFF/API target: `43219`
+## Runtime
 
-The app currently uses typed mock data in `src/data.ts` so UI work can proceed before the terminal/session backend is finalized.
+- UI dev port: `43218`
+- Local terminal backend: `43220`
+- Existing Scryer PM API: `43210`
 
-## Terminal renderer decision
+`npm run dev` starts both the Vite UI and the local terminal backend.
 
-React is the application shell. Ghostty is the visual/behavioral reference, not the default browser runtime.
+## Terminal renderer
 
-For browser/mobile delivery, the likely terminal path is:
+React is the application shell. The terminal uses xterm in the browser, connected to a real local shell over WebSocket.
 
-1. Use an xterm-style browser terminal renderer for PTY streaming.
-2. Preserve Ghostty compatibility where it makes sense: colors, themes, font choices, terminal semantics, and keyboard behavior.
-3. Do not depend on libghostty in the browser unless research proves it can be shipped safely and performantly across desktop and mobile browsers.
+Ghostty/cmux compatibility is represented through defaults:
 
-This keeps the product web-native and mobile-capable while still honoring the cmux/Ghostty feel.
+- terminal font default: `Menlo`, matching cmux/Ghostty config defaults found in cmux source
+- font fallback stack: `Menlo`, `SF Mono`, `Berkeley Mono`, `JetBrains Mono`, `Monaco`, `Consolas`, monospace
+- One Dark/Ghostty-compatible terminal colors
 
-## Normalized API direction
+Browser apps cannot read the user’s local `~/.config/ghostty/config` directly. A later local backend can expose an explicit, safe config import if desired.
 
-The frontend should eventually talk to a thin local BFF under `/api/cmux/*`, instead of directly coupling to tmuxer/orchestrator internals.
+## Local terminal backend
 
-### Core models
+The local backend exposes:
+
+- `GET /healthz`
+- `WS /api/terminal`
+
+Client sends:
 
 ```ts
-type Workspace = {
-  id: string;
-  title: string;
-  cwd: string;
-  branch?: string;
-  status: 'idle' | 'running' | 'blocked' | 'done' | 'failed';
-  paneIds: string[];
-  layout: LayoutNode;
-  unreadCount: number;
-  ports: PortBinding[];
-};
-
-type Pane = {
-  id: string;
-  workspaceId: string;
-  kind: 'terminal' | 'browser' | 'log' | 'status';
-  title: string;
-  status: 'starting' | 'connected' | 'disconnected' | 'exited' | 'blocked';
-  attention: 'none' | 'info' | 'needs-input' | 'error';
-};
-
-type LayoutNode =
-  | { type: 'leaf'; paneId: string }
-  | { type: 'split'; direction: 'row' | 'column'; ratio: number; children: LayoutNode[] };
+{ type: 'input', data: string }
+{ type: 'interrupt' }
+{ type: 'resize', cols: number, rows: number }
 ```
 
-### Mock/real endpoints
+Server sends:
 
-- `GET /api/cmux/workspaces`
-- `POST /api/cmux/workspaces`
-- `PATCH /api/cmux/workspaces/:workspaceId`
-- `POST /api/cmux/workspaces/:workspaceId/panes`
-- `PATCH /api/cmux/panes/:paneId`
-- `POST /api/cmux/panes/:paneId/focus`
-- `POST /api/cmux/terminals`
-- `WS /api/cmux/terminals/:sessionName/attach`
-- `POST /api/cmux/terminals/:sessionName/input`
-- `POST /api/cmux/terminals/:sessionName/resize`
-- `POST /api/cmux/browser-panes`
-- `PATCH /api/cmux/browser-panes/:paneId/navigate`
-- `GET /api/cmux/notifications`
-- `POST /api/cmux/notifications/:id/read`
-- `POST /api/cmux/notifications/:id/respond`
+```ts
+{ type: 'status', status: 'connected' | 'exited', shell: string, cwd: string }
+{ type: 'output', data: string }
+```
 
-## Mobile UX rule
+The current backend spawns the user shell in the repo root. This is a local development terminal backend, not a public service.
 
-Phones are not miniature desktops. The same workspace/pane data model renders differently:
+## Future tmuxer integration
 
-- Desktop: left sidebar + simultaneous multi-pane observability.
-- Tablet: collapsible workspace nav + one/two-pane focus.
-- Phone: one active pane, bottom navigation, direct notification inbox, terminal accessory keys.
+The terminal transport can later be swapped to Scryer tmuxer:
 
-No Claude Code Teams integration is planned. Agent sessions are generic terminal/process panes.
+1. create or attach tmux session
+2. stream output into xterm
+3. send xterm input to tmuxer
+4. forward resize events
+
+The UI should remain the same: clean sidebar, one terminal workspace, mobile terminal focus.
