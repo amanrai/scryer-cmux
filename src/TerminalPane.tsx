@@ -3,9 +3,15 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
-const WS_URL = `ws://${window.location.hostname || '127.0.0.1'}:${import.meta.env.VITE_SCRYER_CMUX_API_PORT ?? '43220'}/api/terminal`;
+const WS_BASE = `ws://${window.location.hostname || '127.0.0.1'}:${import.meta.env.VITE_SCRYER_CMUX_API_PORT ?? '43220'}/api/terminal`; 
 
-export function TerminalPane() {
+type TerminalPaneProps = {
+  paneId: string;
+  active: boolean;
+  focusToken: number;
+};
+
+export function TerminalPane({ paneId, active, focusToken }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -49,23 +55,32 @@ export function TerminalPane() {
     term.loadAddon(fit);
     term.open(hostRef.current);
     fit.fit();
-    term.focus();
-    term.writeln('\x1b[33msmux\x1b[0m connecting to local shell...');
+    if (active) term.focus();
 
-    const socket = new WebSocket(WS_URL);
+    const socket = new WebSocket(`${WS_BASE}?paneId=${encodeURIComponent(paneId)}`);
     socketRef.current = socket;
     termRef.current = term;
     fitRef.current = fit;
 
     socket.addEventListener('open', () => {
       setStatus('connected');
-      socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+      socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows, paneId }));
+      if (active) {
+        window.requestAnimationFrame(() => {
+          fit.fit();
+          term.focus();
+          hostRef.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+        });
+      }
     });
     socket.addEventListener('message', (event) => {
       const payload = JSON.parse(event.data);
-      if (payload.type === 'output') term.write(payload.data);
-      if (payload.type === 'status' && payload.status === 'connected') {
-        term.writeln(`\r\n\x1b[2mconnected: ${payload.shell} · ${payload.cwd}\x1b[0m\r\n`);
+      if (payload.type === 'output') {
+        if (payload.replay) term.clear();
+        term.write(payload.data);
+      }
+      if (payload.type === 'status' && payload.status === 'connected' && !payload.replayed) {
+        term.writeln(`\x1b[33msmux\x1b[0m connected: ${payload.shell} · ${payload.cwd}\r\n`);
       }
     });
     socket.addEventListener('close', () => {
@@ -73,17 +88,17 @@ export function TerminalPane() {
       term.writeln('\r\n\x1b[31m[terminal disconnected]\x1b[0m');
     });
     socket.addEventListener('error', () => {
-      term.writeln('\r\n\x1b[31m[terminal server unavailable — run npm run dev]\x1b[0m');
+      term.writeln('\r\n\x1b[31m[terminal backend unavailable]\x1b[0m');
     });
 
     const dataDisposable = term.onData((data) => {
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }));
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data, paneId }));
     });
 
     const resizeObserver = new ResizeObserver(() => {
       fit.fit();
       if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows, paneId }));
       }
     });
     resizeObserver.observe(hostRef.current);
@@ -94,11 +109,36 @@ export function TerminalPane() {
       socket.close();
       term.dispose();
     };
-  }, []);
+  }, [paneId]);
+
+  useEffect(() => {
+    if (!active) return;
+
+    function focusTerminal() {
+      fitRef.current?.fit();
+      termRef.current?.focus();
+      hostRef.current?.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+      const socket = socketRef.current;
+      const term = termRef.current;
+      if (socket?.readyState === WebSocket.OPEN && term) {
+        socket.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows, paneId }));
+      }
+    }
+
+    const frame = window.requestAnimationFrame(focusTerminal);
+    const timer = window.setTimeout(focusTerminal, 120);
+    window.addEventListener('smux:focus-terminal', focusTerminal);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      window.removeEventListener('smux:focus-terminal', focusTerminal);
+    };
+  }, [active, paneId, focusToken]);
 
   function send(data: string) {
     const socket = socketRef.current;
-    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }));
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data, paneId }));
     termRef.current?.focus();
   }
 
