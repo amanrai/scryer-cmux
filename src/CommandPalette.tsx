@@ -47,8 +47,16 @@ export function CommandPalette({ actions }: CommandPaletteProps) {
       }
     }
 
+    function openPalette() {
+      setOpen(true);
+    }
+
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('smux:open-palette', openPalette);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('smux:open-palette', openPalette);
+    };
   }, []);
 
   useEffect(() => {
@@ -113,7 +121,7 @@ export function CommandPalette({ actions }: CommandPaletteProps) {
     <div className="palette-layer" role="presentation" onMouseDown={close}>
       <div className="palette" role="dialog" aria-modal="true" aria-label="Command palette" onMouseDown={(event) => event.stopPropagation()}>
         <div className="palette-search">
-          <span className="palette-mark">⌘K</span>
+          <i className="palette-search-icon fa-solid fa-magnifying-glass" aria-hidden="true" />
           <input
             ref={inputRef}
             value={query}
@@ -122,9 +130,10 @@ export function CommandPalette({ actions }: CommandPaletteProps) {
               setSelectedIndex(0);
             }}
             onKeyDown={onInputKeyDown}
-            placeholder="Run a terminal command…"
+            placeholder="Search workspaces, panes & actions…"
             aria-label="Search commands"
           />
+          <span className="kbd" aria-hidden="true">esc</span>
         </div>
 
         <div className="palette-list" role="listbox" aria-label="Available commands">
@@ -132,7 +141,7 @@ export function CommandPalette({ actions }: CommandPaletteProps) {
             <div className="palette-empty">No commands found</div>
           ) : (
             visibleActions.map((action) => {
-              if (action.separator) return <div key={action.id} className="palette-separator" role="separator" />;
+              if (action.separator) return <div key={action.id} className="palette-section eyebrow" role="presentation">{action.label}</div>;
               selectableIndex += 1;
               const currentIndex = selectableIndex;
               const selected = currentIndex === selectedIndex;
@@ -147,7 +156,7 @@ export function CommandPalette({ actions }: CommandPaletteProps) {
                   onMouseEnter={() => setSelectedIndex(currentIndex)}
                   onClick={() => select(action)}
                 >
-                  <span className="palette-icon">{action.icon}</span>
+                  <span className="palette-icon"><i className={action.icon} aria-hidden="true" /></span>
                   <span className="palette-label">{action.label}</span>
                   {action.hint ? <span className="palette-hint">{action.hint}</span> : null}
                 </button>

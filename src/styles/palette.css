@@ -1,0 +1,75 @@
+/* ── Command palette ────────────────────────────────────────── */
+.palette-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(10, 11, 14, 0.55);
+  backdrop-filter: blur(3px);
+  animation: fade 0.12s ease;
+}
+.palette {
+  position: fixed;
+  top: 16vh;
+  left: 50%;
+  width: min(580px, calc(100vw - 28px));
+  max-height: 60vh;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line-hi);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.3);
+  animation: pop 0.14s ease;
+}
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: translate(-50%, 6px); } }
+
+.palette-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.palette-search-icon { color: var(--muted); font-size: 14px; }
+.palette-search input {
+  width: 100%;
+  min-width: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+.palette-search input::placeholder { color: var(--faint); }
+
+.palette-list { min-height: 0; overflow: auto; padding: 6px; }
+.palette-empty { padding: 22px 14px; color: var(--muted); font-size: 13px; text-align: center; }
+.palette-section { padding: 12px 12px 5px; }
+.palette-item {
+  width: 100%;
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  color: var(--text-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.palette-item.selected {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.palette-icon { color: var(--accent-text); font-family: var(--font-mono); font-size: 13px; text-align: center; }
+.palette-item:not(.selected) .palette-icon { color: var(--muted); }
+.palette-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.palette-hint { font-family: var(--font-mono); color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+

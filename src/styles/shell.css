@@ -1,0 +1,71 @@
+/* ── Shell layout ───────────────────────────────────────────── */
+.cmux-shell {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+  grid-template-columns: 256px minmax(0, 1fr);
+  grid-template-areas: "host host" "side main";
+  background: var(--void);
+  transition: grid-template-columns 0.18s ease;
+}
+.cmux-shell.nav-collapsed { grid-template-columns: 60px minmax(0, 1fr); }
+
+/* ── Host bar (signature instrument readout) ────────────────── */
+.host-bar {
+  grid-area: host;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--accent-line);
+  transition: border-color 0.3s ease;
+}
+.host-identity { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.host-name {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.host-name b { color: var(--accent-text); font-weight: 600; }
+.host-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--faint);
+  box-shadow: 0 0 0 0 transparent;
+}
+.host-status-dot.synced { background: var(--ok); box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 70%, transparent); }
+.host-status-dot.loading { background: var(--warn); }
+.host-status-dot.offline { background: var(--err); }
+
+.host-divider { width: 1px; height: 22px; background: var(--line-hi); flex: 0 0 auto; }
+
+.host-metrics { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.metric { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.metric.active-pane .metric-value { color: var(--accent-text); }
+
+.host-spacer { margin-left: auto; }
+.palette-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.palette-trigger:hover { background: var(--raised); color: var(--text-2); }
+
