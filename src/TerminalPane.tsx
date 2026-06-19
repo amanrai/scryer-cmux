@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { ImageAddon } from '@xterm/addon-image';
 import '@xterm/xterm/css/xterm.css';
 import { WS_BASE } from './constants';
 import { terminalTheme } from './terminal/theme';
@@ -43,6 +44,8 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    // Inline images: Sixel + iTerm2 inline-image protocol (kitty not supported).
+    term.loadAddon(new ImageAddon({ sixelSupport: true, iipSupport: true }));
     term.open(hostRef.current);
     fit.fit();
     if (active) term.focus();

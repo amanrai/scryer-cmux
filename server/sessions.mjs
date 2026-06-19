@@ -2,6 +2,35 @@ import os from 'node:os';
 import * as pty from 'node-pty';
 import { maxReplayBytes, shell, shellArgs } from './config.mjs';
 
+// Terminal-detection markers that tools (e.g. pi-coding-agent's pi-tui) use to
+// pick an inline-image protocol. smux renders via @xterm/addon-image, which
+// supports Sixel + the iTerm2 inline-image protocol but NOT the kitty protocol.
+// The backend inherits whatever launched it, so strip the kitty/ghostty/wezterm/
+// warp/tmux markers and present as iTerm2 so tools emit a protocol we can draw.
+const STRIPPED_TERM_VARS = [
+  'TMUX', 'TMUX_PANE',
+  'KITTY_WINDOW_ID', 'KITTY_PID', 'KITTY_LISTEN_ON',
+  'GHOSTTY_RESOURCES_DIR', 'GHOSTTY_BIN_DIR',
+  'WEZTERM_PANE', 'WEZTERM_EXECUTABLE', 'WEZTERM_UNIX_SOCKET',
+  'WARP_SESSION_ID', 'WARP_TERMINAL_SESSION_UUID',
+  'WT_SESSION', 'TERMINAL_EMULATOR',
+];
+
+function buildPtyEnv(paneId) {
+  const env = {
+    ...process.env,
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'iTerm.app',
+    TERM_PROGRAM_VERSION: '3.5.0',
+    ITERM_SESSION_ID: `w0t0p0:${paneId}`,
+    SCRYER_CMUX: '1',
+    SCRYER_CMUX_PANE_ID: paneId,
+  };
+  for (const key of STRIPPED_TERM_VARS) delete env[key];
+  return env;
+}
+
 export class SessionManager {
   #sessions = new Map();
 
@@ -54,13 +83,7 @@ export class SessionManager {
       cols: 120,
       rows: 30,
       cwd: os.homedir(),
-      env: {
-        ...process.env,
-        TERM: 'xterm-256color',
-        COLORTERM: 'truecolor',
-        SCRYER_CMUX: '1',
-        SCRYER_CMUX_PANE_ID: paneId,
-      },
+      env: buildPtyEnv(paneId),
     });
 
     const session = { paneId, term, clients: new Set(), replay: '', exited: false };
