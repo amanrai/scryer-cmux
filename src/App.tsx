@@ -7,9 +7,10 @@ import { HostBar } from './components/HostBar';
 import { RenameModal } from './components/RenameModal';
 import { TerminalStage } from './components/TerminalStage';
 import { WorkspaceSidebar } from './components/WorkspaceSidebar';
+import { WorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { useCommandActions } from './hooks/useCommandActions';
 import { useServerStateSync } from './hooks/useServerStateSync';
-import type { ColorPickerState, PaneModel, PaneStatus, RenameTarget, WorkspaceModel } from './types';
+import type { ColorPickerState, PaneModel, PaneStatus, RenameTarget, WorkspaceMenuState, WorkspaceModel } from './types';
 import { makePane, makeWorkspace, makeId } from './workspaceModel';
 
 function cssVars(vars: Record<string, string>) {
@@ -38,6 +39,7 @@ export function App() {
   const [paneStatus, setPaneStatus] = useState<Record<string, PaneStatus>>({});
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
+  const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
   const hasLoadedServerState = useRef(false);
 
   const stateReady = stateStatus !== 'loading';
@@ -171,6 +173,52 @@ export function App() {
     });
   }
 
+  function moveWorkspaceToEdge(workspaceId: string, edge: 'top' | 'bottom') {
+    setWorkspaces((current) => {
+      const index = current.findIndex((workspace) => workspace.id === workspaceId);
+      if (index < 0) return current;
+      const next = [...current];
+      const [workspace] = next.splice(index, 1);
+      if (edge === 'top') next.unshift(workspace);
+      else next.push(workspace);
+      return next;
+    });
+  }
+
+  function closeOtherWorkspaces(workspaceId: string) {
+    setWorkspaces((current) => {
+      const kept = current.find((workspace) => workspace.id === workspaceId);
+      if (!kept) return current;
+      current.forEach((workspace) => {
+        if (workspace.id !== workspaceId) workspace.panes.forEach((pane) => closeServerSession(pane.id));
+      });
+      setActiveWorkspaceId(workspaceId);
+      return [kept];
+    });
+  }
+
+  function closeWorkspacesBelow(workspaceId: string) {
+    setWorkspaces((current) => {
+      const index = current.findIndex((workspace) => workspace.id === workspaceId);
+      if (index < 0) return current;
+      current.slice(index + 1).forEach((workspace) => workspace.panes.forEach((pane) => closeServerSession(pane.id)));
+      const next = current.slice(0, index + 1);
+      if (!next.some((workspace) => workspace.id === activeWorkspaceId)) setActiveWorkspaceId(workspaceId);
+      return next;
+    });
+  }
+
+  function closeWorkspacesAbove(workspaceId: string) {
+    setWorkspaces((current) => {
+      const index = current.findIndex((workspace) => workspace.id === workspaceId);
+      if (index <= 0) return current;
+      current.slice(0, index).forEach((workspace) => workspace.panes.forEach((pane) => closeServerSession(pane.id)));
+      const next = current.slice(index);
+      if (!next.some((workspace) => workspace.id === activeWorkspaceId)) setActiveWorkspaceId(workspaceId);
+      return next;
+    });
+  }
+
   function reorderWorkspace(sourceId: string, targetId: string) {
     if (sourceId === targetId) return;
     setWorkspaces((current) => {
@@ -249,6 +297,10 @@ export function App() {
         onReorderWorkspace={reorderWorkspace}
         onSetDraggedWorkspaceId={setDraggedWorkspaceId}
         onSetColorPicker={setColorPicker}
+        onOpenContextMenu={(workspaceId, x, y) => {
+          setColorPicker(null);
+          setWorkspaceMenu({ workspaceId, x, y });
+        }}
       />
       <TerminalStage
         stateReady={stateReady}
@@ -268,6 +320,22 @@ export function App() {
       />
       <CommandPalette actions={actions} />
       {colorPicker ? <ColorPicker picker={colorPicker} workspaces={workspaces} onSetColor={setWorkspaceColor} onClose={() => setColorPicker(null)} /> : null}
+      {workspaceMenu ? (
+        <WorkspaceContextMenu
+          menu={workspaceMenu}
+          workspaces={workspaces}
+          onRename={openRenameWorkspace}
+          onSetColor={setWorkspaceColor}
+          onMove={moveWorkspace}
+          onMoveToEdge={moveWorkspaceToEdge}
+          onDuplicate={duplicateWorkspace}
+          onClose={closeWorkspace}
+          onCloseOthers={closeOtherWorkspaces}
+          onCloseBelow={closeWorkspacesBelow}
+          onCloseAbove={closeWorkspacesAbove}
+          onDismiss={() => setWorkspaceMenu(null)}
+        />
+      ) : null}
       {renameTarget ? <RenameModal target={renameTarget} draft={renameDraft} onDraftChange={setRenameDraft} onSubmit={submitRename} onCancel={() => setRenameTarget(null)} /> : null}
     </div>
   );

@@ -31,3 +31,9 @@ export type ColorPickerState = {
   x: number;
   y: number;
 };
+
+export type WorkspaceMenuState = {
+  workspaceId: string;
+  x: number;
+  y: number;
+};

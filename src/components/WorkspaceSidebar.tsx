@@ -14,6 +14,7 @@ type WorkspaceSidebarProps = {
   onReorderWorkspace: (sourceId: string, targetId: string) => void;
   onSetDraggedWorkspaceId: (workspaceId: string | null) => void;
   onSetColorPicker: (picker: ColorPickerState | null | ((current: ColorPickerState | null) => ColorPickerState | null)) => void;
+  onOpenContextMenu: (workspaceId: string, x: number, y: number) => void;
 };
 
 function cssVars(vars: Record<string, string>) {
@@ -33,6 +34,7 @@ export function WorkspaceSidebar({
   onReorderWorkspace,
   onSetDraggedWorkspaceId,
   onSetColorPicker,
+  onOpenContextMenu,
 }: WorkspaceSidebarProps) {
   function activateFromKeyboard(event: KeyboardEvent, workspaceId: string) {
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -100,6 +102,10 @@ export function WorkspaceSidebar({
               onRenameWorkspace(workspace.id);
             }}
             onClick={(event) => handleWorkspaceClick(event, workspace)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              onOpenContextMenu(workspace.id, event.clientX, event.clientY);
+            }}
             onKeyDown={(event) => activateFromKeyboard(event, workspace.id)}
           >
             <span className="tab-glyph" aria-hidden="true">{workspace.name.charAt(0).toUpperCase()}</span>
