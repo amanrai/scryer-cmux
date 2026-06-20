@@ -1,4 +1,5 @@
 import { TerminalPane } from '../TerminalPane';
+import type { TerminalPaneApi } from '../TerminalPane';
 import { DEFAULT_FONT_SIZE } from '../constants';
 import type { PaneModel, PaneStatus, WorkspaceModel } from '../types';
 
@@ -14,9 +15,11 @@ type TerminalStageProps = {
   onSetActivePane: (paneId: string, workspaceId?: string) => void;
   onRenamePane: (pane: PaneModel, workspaceId: string) => void;
   onAdjustPaneFontSize: (paneId: string, delta: number) => void;
+  onOpenCommandInput: (pane: PaneModel, workspaceId: string) => void;
   onSplitPane: (direction: WorkspaceModel['layout']) => void;
   onClosePane: (paneId: string) => void;
   onPaneStatus: (paneId: string, status: PaneStatus) => void;
+  onRegisterPaneApi: (paneId: string, api: TerminalPaneApi | null) => void;
 };
 
 export function TerminalStage({
@@ -31,9 +34,11 @@ export function TerminalStage({
   onSetActivePane,
   onRenamePane,
   onAdjustPaneFontSize,
+  onOpenCommandInput,
   onSplitPane,
   onClosePane,
   onPaneStatus,
+  onRegisterPaneApi,
 }: TerminalStageProps) {
   return (
     <main className="workspace-main">
@@ -85,6 +90,19 @@ export function TerminalStage({
                         <button className="pane-action" type="button" title="Increase font size" aria-label="Increase font size" onClick={() => onAdjustPaneFontSize(pane.id, 1)}>
                           <i className="fa-solid fa-magnifying-glass-plus" aria-hidden="true" />
                         </button>
+                        <button
+                          className="pane-action"
+                          type="button"
+                          title="Compose input"
+                          aria-label="Compose input"
+                          onClick={() => {
+                            onActivateWorkspace(workspace.id);
+                            onSetActivePane(pane.id, workspace.id);
+                            onOpenCommandInput(pane, workspace.id);
+                          }}
+                        >
+                          <i className="fa-solid fa-keyboard" aria-hidden="true" />
+                        </button>
                         <span className="pane-action-divider" aria-hidden="true" />
                         <button className="pane-action" type="button" title="New terminal right (⌘T)" aria-label="New terminal right" onClick={() => onSplitPane('row')}>
                           <i className="fa-solid fa-grip-lines-vertical" aria-hidden="true" />
@@ -106,6 +124,7 @@ export function TerminalStage({
                       fontSize={paneFontSize[pane.id] ?? DEFAULT_FONT_SIZE}
                       focusToken={isActive ? terminalFocusToken : 0}
                       onStatus={onPaneStatus}
+                      onRegisterApi={onRegisterPaneApi}
                     />
                   </article>
                 );

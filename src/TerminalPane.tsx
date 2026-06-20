@@ -8,6 +8,11 @@ import { terminalTheme } from './terminal/theme';
 import { shellQuote, uploadFile } from './terminal/upload';
 import type { PaneStatus } from './types';
 
+export type TerminalPaneApi = {
+  sendInput: (data: string) => void;
+  getRecentLines: (count?: number) => string[];
+};
+
 type TerminalPaneProps = {
   paneId: string;
   active: boolean;
@@ -15,9 +20,10 @@ type TerminalPaneProps = {
   fontSize: number;
   focusToken: number;
   onStatus?: (paneId: string, status: PaneStatus) => void;
+  onRegisterApi?: (paneId: string, api: TerminalPaneApi | null) => void;
 };
 
-export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken, onStatus }: TerminalPaneProps) {
+export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken, onStatus, onRegisterApi }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -141,11 +147,33 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
     };
   }, [active, paneId, focusToken]);
 
-  function send(data: string) {
+  function send(data: string, focusAfterSend = true) {
     const socket = socketRef.current;
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data, paneId }));
-    termRef.current?.focus();
+    if (focusAfterSend) termRef.current?.focus();
   }
+
+  function getRecentLines(count = 12) {
+    const term = termRef.current;
+    if (!term) return [];
+    const buffer = term.buffer.active;
+    const end = buffer.baseY + buffer.cursorY;
+    const start = Math.max(0, end - count + 1);
+    const lines: string[] = [];
+    for (let index = start; index <= end; index += 1) {
+      lines.push(buffer.getLine(index)?.translateToString(true) ?? '');
+    }
+    return lines;
+  }
+
+  useEffect(() => {
+    if (!onRegisterApi) return;
+    onRegisterApi(paneId, {
+      sendInput: (data) => send(data, false),
+      getRecentLines,
+    });
+    return () => onRegisterApi(paneId, null);
+  }, [paneId, onRegisterApi]);
 
   function onDragOver(event: React.DragEvent) {
     if (!Array.from(event.dataTransfer.types).includes('Files')) return;

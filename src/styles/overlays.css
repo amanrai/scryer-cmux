@@ -74,7 +74,8 @@
   backdrop-filter: blur(3px);
   animation: fade 0.12s ease;
 }
-.rename-modal {
+.rename-modal,
+.command-input-modal {
   width: min(440px, 100%);
   display: grid;
   gap: 14px;
@@ -86,6 +87,7 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   animation: pop-center 0.14s ease;
 }
+.command-input-modal { width: min(680px, 100%); }
 @keyframes pop-center { from { opacity: 0; transform: translateY(6px); } }
 .modal-titlebar { display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: start; gap: 10px; }
 .modal-titlebar h2 { margin: 0; color: var(--text); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
@@ -103,7 +105,35 @@
   border-radius: var(--radius-sm);
   font-size: 14px;
 }
-.rename-input:focus-visible { outline: none; border-color: var(--accent); }
+.command-context {
+  max-height: 170px;
+  overflow: auto;
+  padding: 10px 12px;
+  color: var(--text-2);
+  background: var(--void);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.command-context-line { min-height: 1.45em; }
+.command-input-textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  padding: 10px 11px;
+  color: var(--text);
+  background: var(--void);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.rename-input:focus-visible,
+.command-input-textarea:focus-visible { outline: none; border-color: var(--accent); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
 .ghost-button {
   height: 34px;

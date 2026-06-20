@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CommandPalette } from './CommandPalette';
 import { API_BASE, DEFAULT_FONT_SIZE } from './constants';
 import { ColorPicker } from './components/ColorPicker';
+import { CommandInputModal } from './components/CommandInputModal';
 import { HostBar } from './components/HostBar';
 import { RenameModal } from './components/RenameModal';
 import { TerminalStage } from './components/TerminalStage';
@@ -10,6 +11,7 @@ import { WorkspaceSidebar } from './components/WorkspaceSidebar';
 import { WorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { useCommandActions } from './hooks/useCommandActions';
 import { useServerStateSync } from './hooks/useServerStateSync';
+import type { TerminalPaneApi } from './TerminalPane';
 import type { ColorPickerState, PaneModel, PaneStatus, RenameTarget, WorkspaceMenuState, WorkspaceModel } from './types';
 import { makePane, makeWorkspace, makeId } from './workspaceModel';
 
@@ -40,6 +42,8 @@ export function App() {
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
   const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
+  const [commandInput, setCommandInput] = useState<{ paneId: string; paneTitle: string; recentLines: string[] } | null>(null);
+  const paneApis = useRef<Record<string, TerminalPaneApi>>({});
   const hasLoadedServerState = useRef(false);
 
   const stateReady = stateStatus !== 'loading';
@@ -265,6 +269,22 @@ export function App() {
     setPaneStatus((current) => (current[paneId] === status ? current : { ...current, [paneId]: status }));
   }
 
+  const registerPaneApi = useCallback((paneId: string, api: TerminalPaneApi | null) => {
+    if (api) paneApis.current[paneId] = api;
+    else delete paneApis.current[paneId];
+  }, []);
+
+  function openCommandInput(pane: PaneModel) {
+    const recentLines = paneApis.current[pane.id]?.getRecentLines(12) ?? [];
+    setCommandInput({ paneId: pane.id, paneTitle: pane.title, recentLines });
+  }
+
+  function sendCommandInput(value: string) {
+    if (!commandInput) return;
+    paneApis.current[commandInput.paneId]?.sendInput(`${value}\r`);
+    setCommandInput(null);
+  }
+
   const actions = useCommandActions({
     workspaces,
     activeWorkspace,
@@ -314,9 +334,11 @@ export function App() {
         onSetActivePane={setActivePane}
         onRenamePane={openRenamePane}
         onAdjustPaneFontSize={adjustPaneFontSize}
+        onOpenCommandInput={openCommandInput}
         onSplitPane={splitPane}
         onClosePane={closePane}
         onPaneStatus={reportPaneStatus}
+        onRegisterPaneApi={registerPaneApi}
       />
       <CommandPalette actions={actions} />
       {colorPicker ? <ColorPicker picker={colorPicker} workspaces={workspaces} onSetColor={setWorkspaceColor} onClose={() => setColorPicker(null)} /> : null}
@@ -337,6 +359,14 @@ export function App() {
         />
       ) : null}
       {renameTarget ? <RenameModal target={renameTarget} draft={renameDraft} onDraftChange={setRenameDraft} onSubmit={submitRename} onCancel={() => setRenameTarget(null)} /> : null}
+      {commandInput ? (
+        <CommandInputModal
+          paneTitle={commandInput.paneTitle}
+          recentLines={commandInput.recentLines}
+          onSend={sendCommandInput}
+          onCancel={() => setCommandInput(null)}
+        />
+      ) : null}
     </div>
   );
 }
