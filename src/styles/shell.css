@@ -5,6 +5,7 @@
   grid-template-rows: 52px minmax(0, 1fr);
   grid-template-columns: 256px minmax(0, 1fr);
   grid-template-areas: "host host" "side main";
+  overflow: hidden;
   background: var(--void);
   transition: grid-template-columns 0.18s ease;
 }

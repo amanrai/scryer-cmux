@@ -105,19 +105,41 @@
   border-radius: var(--radius-sm);
   font-size: 14px;
 }
-.command-context {
-  max-height: 170px;
-  overflow: auto;
-  padding: 10px 12px;
-  color: var(--text-2);
+.command-context-shell {
+  overflow: hidden;
   background: var(--void);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+}
+.command-context-toggle {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px 0 12px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--raised) 45%, transparent);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.command-context-toggle:hover { color: var(--text-2); background: var(--raised); }
+.command-context-toggle-hint { color: var(--accent-text); font-size: 10.5px; letter-spacing: 0.08em; }
+.command-context {
+  max-height: 4.35em;
+  overflow: hidden;
+  padding: 8px 12px 9px;
+  color: var(--text-2);
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.45;
   white-space: pre-wrap;
 }
+.command-context-shell.expanded .command-context { max-height: 170px; overflow: auto; }
 .command-context-line { min-height: 1.45em; }
 .command-input-textarea {
   width: 100%;

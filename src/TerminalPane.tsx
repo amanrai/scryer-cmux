@@ -21,13 +21,17 @@ type TerminalPaneProps = {
   focusToken: number;
   onStatus?: (paneId: string, status: PaneStatus) => void;
   onRegisterApi?: (paneId: string, api: TerminalPaneApi | null) => void;
+  onOpenCommandInput?: () => void;
 };
 
-export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken, onStatus, onRegisterApi }: TerminalPaneProps) {
+export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+  const touchLastYRef = useRef<number | null>(null);
+  const touchScrollRemainderRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const [status, setStatus] = useState<PaneStatus>('connecting');
   const [dropActive, setDropActive] = useState(false);
 
@@ -200,6 +204,41 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
     if (paths.length > 0) send(`${paths.join(' ')} `);
   }
 
+  function onTouchStart(event: React.TouchEvent) {
+    if (event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    touchLastYRef.current = touch.clientY;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, moved: false };
+  }
+
+  function onTouchMove(event: React.TouchEvent) {
+    const term = termRef.current;
+    const lastY = touchLastYRef.current;
+    if (!term || event.touches.length !== 1 || lastY === null) return;
+    event.preventDefault();
+    const touch = event.touches[0];
+    const start = touchStartRef.current;
+    if (start && Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 8) start.moved = true;
+    const deltaPx = lastY - touch.clientY;
+    touchLastYRef.current = touch.clientY;
+    touchScrollRemainderRef.current += deltaPx / Math.max(1, fontSize * 1.35);
+    const deltaLines = Math.trunc(touchScrollRemainderRef.current);
+    if (deltaLines !== 0) {
+      term.scrollLines(deltaLines);
+      touchScrollRemainderRef.current -= deltaLines;
+    }
+  }
+
+  function onTouchEnd(event: React.TouchEvent) {
+    const start = touchStartRef.current;
+    touchLastYRef.current = null;
+    touchScrollRemainderRef.current = 0;
+    touchStartRef.current = null;
+    if (!start || start.moved) return;
+    event.preventDefault();
+    onOpenCommandInput?.();
+  }
+
   return (
     <div
       className={`terminal-wrap${dropActive ? ' drop-active' : ''}`}
@@ -208,7 +247,14 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div ref={hostRef} className="xterm-host" />
+      <div
+        ref={hostRef}
+        className="xterm-host"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+      />
       {dropActive ? <div className="drop-overlay" aria-hidden="true">Drop to add file path</div> : null}
       <div className="terminal-accessory" aria-label="Terminal shortcuts">
         <button onClick={() => send('\x1b')}>Esc</button>

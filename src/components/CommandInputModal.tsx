@@ -9,7 +9,9 @@ type CommandInputModalProps = {
 
 export function CommandInputModal({ paneTitle, recentLines, onSend, onCancel }: CommandInputModalProps) {
   const [draft, setDraft] = useState('');
+  const [contextExpanded, setContextExpanded] = useState(false);
   const canSend = draft.trim().length > 0;
+  const visibleLines = contextExpanded ? recentLines : recentLines.slice(-3);
 
   return (
     <div className="modal-layer" role="presentation" onMouseDown={onCancel}>
@@ -34,18 +36,28 @@ export function CommandInputModal({ paneTitle, recentLines, onSend, onCancel }: 
           </button>
         </div>
         {recentLines.length > 0 ? (
-          <div className="command-context" aria-label="Recent terminal output">
-            {recentLines.map((line, index) => (
-              <div key={`${index}-${line}`} className="command-context-line">{line || ' '}</div>
-            ))}
-          </div>
+          <section className={`command-context-shell${contextExpanded ? ' expanded' : ''}`} aria-label="Recent terminal output">
+            <button
+              type="button"
+              className="command-context-toggle"
+              aria-expanded={contextExpanded}
+              onClick={() => setContextExpanded((value) => !value)}
+            >
+              <span>Terminal state</span>
+              <span className="command-context-toggle-hint">{contextExpanded ? 'Collapse' : 'Expand'}</span>
+            </button>
+            <div className="command-context">
+              {visibleLines.map((line, index) => (
+                <div key={`${index}-${line}`} className="command-context-line">{line || ' '}</div>
+              ))}
+            </div>
+          </section>
         ) : null}
         <label className="field-label" htmlFor="command-input-textarea">Input</label>
         <textarea
           id="command-input-textarea"
           className="command-input-textarea"
           value={draft}
-          autoFocus
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}

@@ -125,6 +125,11 @@ export function TerminalStage({
                       focusToken={isActive ? terminalFocusToken : 0}
                       onStatus={onPaneStatus}
                       onRegisterApi={onRegisterPaneApi}
+                      onOpenCommandInput={() => {
+                        onActivateWorkspace(workspace.id);
+                        onSetActivePane(pane.id, workspace.id);
+                        onOpenCommandInput(pane, workspace.id);
+                      }}
                     />
                   </article>
                 );

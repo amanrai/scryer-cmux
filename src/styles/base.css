@@ -44,8 +44,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; }
-body { overflow: hidden; min-width: 320px; }
+html, body, #root { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+body { overflow: hidden; min-width: 320px; touch-action: none; }
 button, input { font: inherit; }
 button { color: inherit; background: none; border: none; cursor: pointer; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }

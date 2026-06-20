@@ -275,7 +275,7 @@ export function App() {
   }, []);
 
   function openCommandInput(pane: PaneModel) {
-    const recentLines = paneApis.current[pane.id]?.getRecentLines(12) ?? [];
+    const recentLines = paneApis.current[pane.id]?.getRecentLines(200) ?? [];
     setCommandInput({ paneId: pane.id, paneTitle: pane.title, recentLines });
   }
 
