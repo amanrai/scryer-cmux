@@ -1,9 +1,13 @@
+import type { SmuxThemeName } from '../terminal/theme';
+
 type HostBarProps = {
   hostName: string;
   stateStatus: 'loading' | 'synced' | 'offline';
+  themeName: SmuxThemeName;
+  onToggleTheme: () => void;
 };
 
-export function HostBar({ hostName, stateStatus }: HostBarProps) {
+export function HostBar({ hostName, stateStatus, themeName, onToggleTheme }: HostBarProps) {
   return (
     <header className="host-bar">
       <div className="host-identity">
@@ -11,6 +15,16 @@ export function HostBar({ hostName, stateStatus }: HostBarProps) {
         <span className="host-name" title={hostName}><b>{hostName}</b></span>
       </div>
       <div className="host-spacer" />
+      <button
+        className="palette-trigger"
+        type="button"
+        title={themeName === 'sunlight' ? 'Switch to dark theme' : 'Switch to hi-viz sunlight theme'}
+        aria-label="Toggle hi-viz sunlight theme"
+        onClick={onToggleTheme}
+      >
+        <i className="fa-solid fa-sun" aria-hidden="true" />
+        <span>{themeName === 'sunlight' ? 'Sunlight' : 'Dark'}</span>
+      </button>
       <button
         className="palette-trigger"
         type="button"

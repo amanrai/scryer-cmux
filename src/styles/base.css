@@ -43,6 +43,28 @@
   text-rendering: optimizeLegibility;
 }
 
+.cmux-shell.theme-sunlight {
+  color-scheme: light;
+  --void: #FFFFFF;
+  --surface: #FFF200;
+  --raised: #FFFFFF;
+  --raised-hi: #000000;
+  --line: #000000;
+  --line-hi: #000000;
+  --text: #000000;
+  --text-2: #000000;
+  --muted: #111111;
+  --faint: #333333;
+  --ok: #008000;
+  --warn: #B85C00;
+  --err: #FF0000;
+  --accent: #FF0000;
+  --accent-soft: rgba(255, 0, 0, 0.22);
+  --accent-line: #FF0000;
+  --accent-text: #FF0000;
+  --focus: #0000FF;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
 body { overflow: hidden; min-width: 320px; touch-action: none; }

@@ -13,10 +13,15 @@ import { useCommandActions } from './hooks/useCommandActions';
 import { useServerStateSync } from './hooks/useServerStateSync';
 import type { TerminalPaneApi } from './TerminalPane';
 import type { ColorPickerState, PaneModel, PaneStatus, RenameTarget, WorkspaceMenuState, WorkspaceModel } from './types';
+import type { SmuxThemeName } from './terminal/theme';
 import { makePane, makeWorkspace, makeId } from './workspaceModel';
 
 function cssVars(vars: Record<string, string>) {
   return vars as CSSProperties;
+}
+
+function loadThemeName(): SmuxThemeName {
+  return localStorage.getItem('smux-theme') === 'sunlight' ? 'sunlight' : 'dark';
 }
 
 function loadPaneFontSizes() {
@@ -40,6 +45,7 @@ export function App() {
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
   const [paneStatus, setPaneStatus] = useState<Record<string, PaneStatus>>({});
   const [paneInteractionState, setPaneInteractionState] = useState<Record<string, { hasProducer: boolean; hasPending: boolean }>>({});
+  const [themeName, setThemeName] = useState<SmuxThemeName>(loadThemeName);
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
   const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
@@ -54,6 +60,10 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('smux-nav-collapsed', String(navCollapsed));
   }, [navCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('smux-theme', themeName);
+  }, [themeName]);
 
   useEffect(() => {
     localStorage.setItem('smux-pane-fontsize', JSON.stringify(paneFontSize));
@@ -319,8 +329,8 @@ export function App() {
   });
 
   return (
-    <div className={`cmux-shell${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': activeWorkspace.color })}>
-      <HostBar hostName={hostName} stateStatus={stateStatus} />
+    <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': themeName === 'sunlight' ? '#FF0000' : activeWorkspace.color })}>
+      <HostBar hostName={hostName} stateStatus={stateStatus} themeName={themeName} onToggleTheme={() => setThemeName((value) => value === 'sunlight' ? 'dark' : 'sunlight')} />
       <WorkspaceSidebar
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -347,6 +357,7 @@ export function App() {
         paneStatus={paneStatus}
         paneFontSize={paneFontSize}
         paneInteractionState={paneInteractionState}
+        themeName={themeName}
         terminalFocusToken={terminalFocusToken}
         onActivateWorkspace={activateWorkspace}
         onSetActivePane={setActivePane}

@@ -5,6 +5,7 @@ import { ImageAddon } from '@xterm/addon-image';
 import '@xterm/xterm/css/xterm.css';
 import { WS_BASE } from './constants';
 import { terminalTheme } from './terminal/theme';
+import type { SmuxThemeName } from './terminal/theme';
 import { shellQuote, uploadFile } from './terminal/upload';
 import type { PaneStatus } from './types';
 
@@ -27,6 +28,7 @@ type TerminalPaneProps = {
   paneId: string;
   active: boolean;
   accentColor: string;
+  themeName: SmuxThemeName;
   fontSize: number;
   focusToken: number;
   onStatus?: (paneId: string, status: PaneStatus) => void;
@@ -144,7 +146,7 @@ function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
   );
 }
 
-export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState }: TerminalPaneProps) {
+export function TerminalPane({ paneId, active, accentColor, themeName, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -174,7 +176,7 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
       lineHeight: 1.35,
       scrollback: 5000,
       convertEol: true,
-      theme: terminalTheme(accentColor),
+      theme: terminalTheme(accentColor, themeName),
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -246,8 +248,8 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
   }, [paneId]);
 
   useEffect(() => {
-    if (termRef.current) termRef.current.options.theme = terminalTheme(accentColor);
-  }, [accentColor]);
+    if (termRef.current) termRef.current.options.theme = terminalTheme(accentColor, themeName);
+  }, [accentColor, themeName]);
 
   useEffect(() => {
     const term = termRef.current;

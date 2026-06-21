@@ -97,6 +97,7 @@
 }
 .pane:hover .pane-action, .pane.active .pane-action { opacity: 1; }
 .pane-action:hover { color: var(--text); background: var(--raised-hi); }
+.theme-sunlight .pane-action:hover { color: #FFFFFF; background: #000000; }
 .pane-action.interaction.listening { color: var(--accent-text); }
 .pane-action.interaction.pending {
   color: var(--void);
@@ -197,6 +198,8 @@
   background: color-mix(in srgb, var(--accent) 13%, var(--raised));
   transform: translateY(-1px);
 }
+.theme-sunlight .interaction-choice:hover,
+.theme-sunlight .interaction-choice.selected { color: #FFFFFF; background: #000000; border-color: #FF0000; }
 .interaction-choice:hover i, .interaction-choice.selected i { color: var(--accent-text); }
 .interaction-composer { display: grid; gap: 7px; }
 .interaction-composer label {
@@ -245,6 +248,7 @@
   text-align: left;
 }
 .quick-input-item:hover { color: var(--text); border-color: var(--accent-line); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
+.theme-sunlight .quick-input-item:hover { color: #FFFFFF; background: #000000; border-color: #FF0000; }
 .quick-input-item i { color: var(--accent-text); font-size: 13px; text-align: center; }
 .quick-input-item strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
 .quick-input-item small { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }

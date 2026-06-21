@@ -6,7 +6,36 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function terminalTheme(accentColor: string) {
+export type SmuxThemeName = 'dark' | 'sunlight';
+
+export function terminalTheme(accentColor: string, theme: SmuxThemeName = 'dark') {
+  if (theme === 'sunlight') {
+    return {
+      background: '#FFFFFF',
+      foreground: '#000000',
+      cursor: '#FF0000',
+      cursorAccent: '#FFFFFF',
+      selectionBackground: '#FFD400',
+      selectionForeground: '#000000',
+      black: '#000000',
+      red: '#D00000',
+      green: '#006B00',
+      yellow: '#8A5A00',
+      blue: '#003BFF',
+      magenta: '#8B00FF',
+      cyan: '#005A6A',
+      white: '#FFFFFF',
+      brightBlack: '#303030',
+      brightRed: '#FF0000',
+      brightGreen: '#008A00',
+      brightYellow: '#B87500',
+      brightBlue: '#0000FF',
+      brightMagenta: '#B000FF',
+      brightCyan: '#007A90',
+      brightWhite: '#FFFFFF',
+    };
+  }
+
   return {
     background: '#15171C',
     foreground: '#E6E8EC',

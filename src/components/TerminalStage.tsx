@@ -1,6 +1,7 @@
 import { TerminalPane } from '../TerminalPane';
 import type { TerminalPaneApi } from '../TerminalPane';
 import { DEFAULT_FONT_SIZE } from '../constants';
+import type { SmuxThemeName } from '../terminal/theme';
 import type { PaneModel, PaneStatus, WorkspaceModel } from '../types';
 
 type TerminalStageProps = {
@@ -11,6 +12,7 @@ type TerminalStageProps = {
   paneStatus: Record<string, PaneStatus>;
   paneFontSize: Record<string, number>;
   paneInteractionState: Record<string, { hasProducer: boolean; hasPending: boolean }>;
+  themeName: SmuxThemeName;
   terminalFocusToken: number;
   onActivateWorkspace: (workspaceId: string) => void;
   onSetActivePane: (paneId: string, workspaceId?: string) => void;
@@ -34,6 +36,7 @@ export function TerminalStage({
   paneStatus,
   paneFontSize,
   paneInteractionState,
+  themeName,
   terminalFocusToken,
   onActivateWorkspace,
   onSetActivePane,
@@ -142,6 +145,7 @@ export function TerminalStage({
                       paneId={pane.id}
                       active={isActive}
                       accentColor={workspace.color}
+                      themeName={themeName}
                       fontSize={paneFontSize[pane.id] ?? DEFAULT_FONT_SIZE}
                       focusToken={isActive ? terminalFocusToken : 0}
                       onStatus={onPaneStatus}
