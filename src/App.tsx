@@ -71,8 +71,6 @@ export function App() {
 
   useEffect(() => {
     const scrollableSelector = [
-      '.xterm-host',
-      '.xterm-viewport',
       '.interaction-pane-modal',
       '.quick-input-modal',
       '.command-input-modal',
@@ -88,8 +86,16 @@ export function App() {
       event.preventDefault();
     }
 
+    function lockPageScroll() {
+      if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+    }
+
     document.addEventListener('touchmove', preventPageTouchScroll, { passive: false });
-    return () => document.removeEventListener('touchmove', preventPageTouchScroll);
+    window.addEventListener('scroll', lockPageScroll, { passive: true });
+    return () => {
+      document.removeEventListener('touchmove', preventPageTouchScroll);
+      window.removeEventListener('scroll', lockPageScroll);
+    };
   }, []);
 
   useServerStateSync({

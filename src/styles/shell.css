@@ -1,6 +1,9 @@
 /* ── Shell layout ───────────────────────────────────────────── */
 .cmux-shell {
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
   display: grid;
   grid-template-rows: 52px minmax(0, 1fr);
   grid-template-columns: 256px minmax(0, 1fr);
