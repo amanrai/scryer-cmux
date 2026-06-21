@@ -69,6 +69,29 @@ export function App() {
     localStorage.setItem('smux-pane-fontsize', JSON.stringify(paneFontSize));
   }, [paneFontSize]);
 
+  useEffect(() => {
+    const scrollableSelector = [
+      '.xterm-host',
+      '.xterm-viewport',
+      '.interaction-pane-modal',
+      '.quick-input-modal',
+      '.command-input-modal',
+      '.command-context',
+      '.terminal-accessory',
+      '.palette',
+      '.workspace-sidebar',
+    ].join(',');
+
+    function preventPageTouchScroll(event: TouchEvent) {
+      const target = event.target as Element | null;
+      if (target?.closest(scrollableSelector)) return;
+      event.preventDefault();
+    }
+
+    document.addEventListener('touchmove', preventPageTouchScroll, { passive: false });
+    return () => document.removeEventListener('touchmove', preventPageTouchScroll);
+  }, []);
+
   useServerStateSync({
     workspaces,
     activeWorkspaceId,
@@ -329,7 +352,7 @@ export function App() {
   });
 
   return (
-    <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': themeName === 'sunlight' ? '#FF0000' : activeWorkspace.color })}>
+    <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': themeName === 'sunlight' ? '#005FCC' : activeWorkspace.color })}>
       <HostBar hostName={hostName} stateStatus={stateStatus} themeName={themeName} onToggleTheme={() => setThemeName((value) => value === 'sunlight' ? 'dark' : 'sunlight')} />
       <WorkspaceSidebar
         workspaces={workspaces}
