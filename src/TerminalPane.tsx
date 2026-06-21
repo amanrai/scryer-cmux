@@ -174,7 +174,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       fontFamily: '"JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace',
       fontSize,
       lineHeight: 1.35,
-      scrollback: 5000,
+      scrollback: 2000,
       convertEol: true,
       theme: terminalTheme(accentColor, themeName),
     });
@@ -417,7 +417,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
           onRespond={respondToInteraction}
         />
       ) : null}
-      {quickInputsVisible ? <QuickInputsModal onClose={() => setQuickInputsVisible(false)} onSend={(data) => { send(data); setQuickInputsVisible(false); }} /> : null}
+      {quickInputsVisible ? <QuickInputsModal onClose={() => { setQuickInputsVisible(false); termRef.current?.blur(); }} onSend={(data) => { send(data, false); setQuickInputsVisible(false); }} /> : null}
       <div className="terminal-accessory" aria-label="Terminal shortcuts">
         <button onClick={() => send('\x1b')}>Esc</button>
         <button onClick={() => send('\t')}>Tab</button>
