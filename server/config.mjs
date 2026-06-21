@@ -11,4 +11,4 @@ export const shellArgs = process.platform === 'win32' ? [] : ['-il'];
 export const statePath = path.join(repoRoot, '.smux-state.json');
 export const uploadsDir = path.join(os.tmpdir(), 'smux-uploads');
 export const maxUploadBytes = 50 * 1024 * 1024;
-export const maxReplayBytes = 250_000;
+export const maxReplayBytes = Number(process.env.SCRYER_CMUX_MAX_REPLAY_BYTES ?? 10 * 1024);
