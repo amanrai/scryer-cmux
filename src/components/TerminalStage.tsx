@@ -10,15 +10,18 @@ type TerminalStageProps = {
   activeWorkspaceId: string;
   paneStatus: Record<string, PaneStatus>;
   paneFontSize: Record<string, number>;
+  paneInteractionState: Record<string, { hasProducer: boolean; hasPending: boolean }>;
   terminalFocusToken: number;
   onActivateWorkspace: (workspaceId: string) => void;
   onSetActivePane: (paneId: string, workspaceId?: string) => void;
   onRenamePane: (pane: PaneModel, workspaceId: string) => void;
   onAdjustPaneFontSize: (paneId: string, delta: number) => void;
   onOpenCommandInput: (pane: PaneModel, workspaceId: string) => void;
+  onOpenPaneInteraction: (paneId: string) => void;
   onSplitPane: (direction: WorkspaceModel['layout']) => void;
   onClosePane: (paneId: string) => void;
   onPaneStatus: (paneId: string, status: PaneStatus) => void;
+  onPaneInteractionState: (paneId: string, state: { hasProducer: boolean; hasPending: boolean }) => void;
   onRegisterPaneApi: (paneId: string, api: TerminalPaneApi | null) => void;
 };
 
@@ -29,15 +32,18 @@ export function TerminalStage({
   activeWorkspaceId,
   paneStatus,
   paneFontSize,
+  paneInteractionState,
   terminalFocusToken,
   onActivateWorkspace,
   onSetActivePane,
   onRenamePane,
   onAdjustPaneFontSize,
   onOpenCommandInput,
+  onOpenPaneInteraction,
   onSplitPane,
   onClosePane,
   onPaneStatus,
+  onPaneInteractionState,
   onRegisterPaneApi,
 }: TerminalStageProps) {
   return (
@@ -58,6 +64,7 @@ export function TerminalStage({
               {workspace.panes.map((pane) => {
                 const isActive = workspace.id === activeWorkspaceId && pane.id === workspace.activePaneId;
                 const status = paneStatus[pane.id] ?? 'connecting';
+                const interactionState = paneInteractionState[pane.id] ?? { hasProducer: false, hasPending: false };
                 return (
                   <article
                     key={pane.id}
@@ -89,6 +96,15 @@ export function TerminalStage({
                         </button>
                         <button className="pane-action" type="button" title="Increase font size" aria-label="Increase font size" onClick={() => onAdjustPaneFontSize(pane.id, 1)}>
                           <i className="fa-solid fa-magnifying-glass-plus" aria-hidden="true" />
+                        </button>
+                        <button
+                          className={`pane-action interaction ${interactionState.hasProducer ? 'listening' : ''}${interactionState.hasPending ? ' pending' : ''}`}
+                          type="button"
+                          title={interactionState.hasPending ? 'Open pending interaction' : interactionState.hasProducer ? 'Listening for interactions' : 'No interaction producer detected'}
+                          aria-label="Interactions"
+                          onClick={() => onOpenPaneInteraction(pane.id)}
+                        >
+                          <i className="fa-solid fa-comments" aria-hidden="true" />
                         </button>
                         <button
                           className="pane-action"
@@ -125,6 +141,7 @@ export function TerminalStage({
                       focusToken={isActive ? terminalFocusToken : 0}
                       onStatus={onPaneStatus}
                       onRegisterApi={onRegisterPaneApi}
+                      onInteractionState={onPaneInteractionState}
                       onOpenCommandInput={() => {
                         onActivateWorkspace(workspace.id);
                         onSetActivePane(pane.id, workspace.id);

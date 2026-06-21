@@ -14,7 +14,19 @@ function send(ws, payload) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(payload));
 }
 
-const sessions = new SessionManager(send);
+function updatePaneProducer(paneId, producer) {
+  appState = {
+    ...appState,
+    workspaces: appState.workspaces.map((workspace) => ({
+      ...workspace,
+      panes: workspace.panes.map((pane) => (pane.id === paneId ? { ...pane, interactionProducer: producer } : pane)),
+    })),
+  };
+  saveState(appState);
+}
+
+const sessions = new SessionManager(send, { onProducer: updatePaneProducer });
+sessions.loadProducers(appState.workspaces.flatMap((workspace) => workspace.panes));
 
 function statePayload() {
   return { ...appState, hostName: getDisplayHostName() };

@@ -39,6 +39,7 @@ export function sanitizeState(input) {
           id: String(pane?.id || makeId('pane')),
           title: String(pane?.title || `Terminal ${paneIndex + 1}`).slice(0, 80),
           createdAt: Number(pane?.createdAt) || Date.now(),
+          interactionProducer: pane?.interactionProducer && typeof pane.interactionProducer.from === 'string' ? pane.interactionProducer : undefined,
         }))
         .slice(0, 24);
       if (panes.length === 0) panes.push(makePane(1));

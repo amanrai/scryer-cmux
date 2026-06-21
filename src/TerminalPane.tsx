@@ -8,9 +8,18 @@ import { terminalTheme } from './terminal/theme';
 import { shellQuote, uploadFile } from './terminal/upload';
 import type { PaneStatus } from './types';
 
+type InteractionChoice = { id: string; label: string; send?: string; custom?: boolean };
+type InteractionRequest = {
+  id: string;
+  from: string;
+  kind: string;
+  payload: { title?: string; body?: string; choices?: InteractionChoice[] };
+};
+
 export type TerminalPaneApi = {
   sendInput: (data: string) => void;
   getRecentLines: (count?: number) => string[];
+  openInteraction: () => void;
 };
 
 type TerminalPaneProps = {
@@ -22,9 +31,74 @@ type TerminalPaneProps = {
   onStatus?: (paneId: string, status: PaneStatus) => void;
   onRegisterApi?: (paneId: string, api: TerminalPaneApi | null) => void;
   onOpenCommandInput?: () => void;
+  onInteractionState?: (paneId: string, state: { hasProducer: boolean; hasPending: boolean }) => void;
 };
 
-export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput }: TerminalPaneProps) {
+function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
+  request: InteractionRequest;
+  onClose: () => void;
+  onDismiss: () => void;
+  onRespond: (response: Record<string, unknown>) => void;
+}) {
+  const [custom, setCustom] = useState(false);
+  const [draft, setDraft] = useState('');
+  const choices = request.payload.choices?.length ? request.payload.choices : [{ id: 'custom', label: 'Type response…', custom: true }];
+  return (
+    <div className={`interaction-pane-modal${custom ? ' composing' : ''}`} onMouseDown={(event) => event.stopPropagation()}>
+      <div className="interaction-pane-header">
+        <div className="interaction-eyebrow"><i className="fa-solid fa-comments" aria-hidden="true" /> Interaction request</div>
+        <button type="button" className="interaction-close" title="Close locally" onClick={onClose}>
+          <i className="fa-solid fa-xmark" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="interaction-pane-titlebar">
+        <h3>{request.payload.title ?? 'Input needed'}</h3>
+        {request.payload.body ? <p>{request.payload.body}</p> : null}
+      </div>
+      <div className="interaction-choice-list" aria-label="Choices">
+        {choices.map((choice) => (
+          <button
+            key={choice.id}
+            type="button"
+            className={`interaction-choice${choice.custom && custom ? ' selected' : ''}`}
+            onClick={() => choice.custom ? setCustom(true) : onRespond({ kind: 'choice', choiceId: choice.id, text: choice.send ?? choice.label })}
+          >
+            <span>{choice.label}</span>
+            <i className={`fa-solid ${choice.custom ? 'fa-keyboard' : 'fa-arrow-right'}`} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      {custom ? (
+        <div className="interaction-composer">
+          <label htmlFor={`interaction-custom-${request.id}`}>Custom response</label>
+          <textarea
+            id={`interaction-custom-${request.id}`}
+            className="interaction-custom-input"
+            value={draft}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Type your response…"
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && draft.trim()) {
+                event.preventDefault();
+                onRespond({ kind: 'custom', text: draft.trim() });
+              }
+            }}
+          />
+        </div>
+      ) : null}
+      <div className="interaction-actions">
+        <button type="button" className="ghost-button" onClick={onDismiss}>Dismiss</button>
+        {custom ? <button type="button" className="create-button" disabled={!draft.trim()} onClick={() => onRespond({ kind: 'custom', text: draft.trim() })}>Send</button> : null}
+      </div>
+    </div>
+  );
+}
+
+export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -34,6 +108,9 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
   const touchStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const [status, setStatus] = useState<PaneStatus>('connecting');
   const [dropActive, setDropActive] = useState(false);
+  const [hasProducer, setHasProducer] = useState(false);
+  const [interaction, setInteraction] = useState<InteractionRequest | null>(null);
+  const [interactionVisible, setInteractionVisible] = useState(false);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -81,6 +158,16 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
       if (payload.type === 'output') {
         if (payload.replay) term.clear();
         term.write(payload.data);
+      }
+      if (payload.type === 'status' && payload.interactionProducer) setHasProducer(true);
+      if (payload.type === 'interaction_producer') setHasProducer(true);
+      if (payload.type === 'interaction') {
+        setInteraction(payload.request);
+        setInteractionVisible(true);
+      }
+      if (payload.type === 'interaction_clear') {
+        setInteraction(null);
+        setInteractionVisible(false);
       }
     });
     socket.addEventListener('close', () => {
@@ -175,9 +262,25 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
     onRegisterApi(paneId, {
       sendInput: (data) => send(data, false),
       getRecentLines,
+      openInteraction: () => { if (interaction) setInteractionVisible(true); },
     });
     return () => onRegisterApi(paneId, null);
-  }, [paneId, onRegisterApi]);
+  }, [paneId, onRegisterApi, interaction]);
+
+  useEffect(() => {
+    onInteractionState?.(paneId, { hasProducer, hasPending: !!interaction });
+  }, [paneId, hasProducer, interaction, onInteractionState]);
+
+  useEffect(() => {
+    if (active && interaction) setInteractionVisible(true);
+  }, [active, interaction]);
+
+  function respondToInteraction(response: Record<string, unknown>) {
+    const socket = socketRef.current;
+    if (!interaction || socket?.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({ type: 'interaction_response', request: interaction, response, paneId }));
+    setInteractionVisible(false);
+  }
 
   function onDragOver(event: React.DragEvent) {
     if (!Array.from(event.dataTransfer.types).includes('Files')) return;
@@ -256,6 +359,14 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
         onTouchCancel={onTouchEnd}
       />
       {dropActive ? <div className="drop-overlay" aria-hidden="true">Drop to add file path</div> : null}
+      {interaction && interactionVisible ? (
+        <InteractionPaneModal
+          request={interaction}
+          onClose={() => setInteractionVisible(false)}
+          onDismiss={() => respondToInteraction({ kind: 'dismiss' })}
+          onRespond={respondToInteraction}
+        />
+      ) : null}
       <div className="terminal-accessory" aria-label="Terminal shortcuts">
         <button onClick={() => send('\x1b')}>Esc</button>
         <button onClick={() => send('\t')}>Tab</button>

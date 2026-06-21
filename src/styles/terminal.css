@@ -97,6 +97,12 @@
 }
 .pane:hover .pane-action, .pane.active .pane-action { opacity: 1; }
 .pane-action:hover { color: var(--text); background: var(--raised-hi); }
+.pane-action.interaction.listening { color: var(--accent-text); }
+.pane-action.interaction.pending {
+  color: var(--void);
+  background: var(--accent);
+  box-shadow: 0 0 14px var(--accent-soft);
+}
 .pane-action.danger:hover { color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
 .pane-action i { font-size: 12.5px; }
 .pane-action-divider { width: 1px; height: 16px; margin: 0 3px; background: var(--line-hi); flex: 0 0 auto; }
@@ -131,6 +137,98 @@
 .xterm .xterm-viewport::-webkit-scrollbar { width: 9px; }
 .xterm .xterm-viewport::-webkit-scrollbar-thumb { background: var(--raised-hi); border-radius: 5px; border: 2px solid var(--void); }
 
+.interaction-pane-modal {
+  position: absolute;
+  z-index: 8;
+  top: 14px;
+  left: 50%;
+  width: min(620px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+  transform: translateX(-50%);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, black);
+  border: 1px solid var(--accent-line);
+  border-radius: 6px;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+  backdrop-filter: blur(10px);
+  animation: pop-center 0.14s ease;
+}
+.interaction-pane-modal.composing { top: 8px; }
+.interaction-pane-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.interaction-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.interaction-pane-titlebar h3 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.015em; }
+.interaction-pane-titlebar p { margin: 7px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.45; white-space: pre-wrap; }
+.interaction-close { width: 30px; height: 30px; display: grid; place-items: center; color: var(--muted); border-radius: 4px; }
+.interaction-close:hover { color: var(--text); background: var(--raised-hi); }
+.interaction-choice-list { display: grid; gap: 8px; }
+.interaction-choice {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--raised) 82%, transparent);
+  border: 1px solid var(--line-hi);
+  border-radius: 4px;
+  text-align: left;
+  transition: transform 0.1s ease, border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.interaction-choice i { color: var(--muted); font-size: 12px; }
+.interaction-choice:hover, .interaction-choice.selected {
+  color: var(--text);
+  border-color: var(--accent-line);
+  background: color-mix(in srgb, var(--accent) 13%, var(--raised));
+  transform: translateY(-1px);
+}
+.interaction-choice:hover i, .interaction-choice.selected i { color: var(--accent-text); }
+.interaction-composer { display: grid; gap: 7px; }
+.interaction-composer label {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.interaction-custom-input {
+  width: 100%;
+  min-height: 130px;
+  max-height: 30vh;
+  resize: vertical;
+  padding: 11px 12px;
+  color: var(--text);
+  background: var(--void);
+  border: 1px solid var(--line-hi);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.interaction-custom-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.interaction-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 720px) {
+  .interaction-pane-modal { top: 6px; width: calc(100% - 12px); max-height: calc(100% - 12px); padding: 12px; overflow: auto; }
+  .interaction-pane-modal.composing { top: 4px; }
+  .interaction-pane-titlebar h3 { font-size: 15px; }
+  .interaction-pane-titlebar p { font-size: 12px; }
+  .interaction-custom-input { min-height: 110px; max-height: 24vh; }
+}
 .terminal-accessory { display: none; gap: 6px; padding: 7px; border-top: 1px solid var(--line); background: var(--surface); overflow-x: auto; }
 .terminal-accessory button {
   min-width: 48px;

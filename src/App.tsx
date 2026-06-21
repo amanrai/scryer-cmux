@@ -39,6 +39,7 @@ export function App() {
   const [hostName, setHostName] = useState('smux');
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
   const [paneStatus, setPaneStatus] = useState<Record<string, PaneStatus>>({});
+  const [paneInteractionState, setPaneInteractionState] = useState<Record<string, { hasProducer: boolean; hasPending: boolean }>>({});
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
   const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
@@ -279,6 +280,18 @@ export function App() {
     setCommandInput({ paneId: pane.id, paneTitle: pane.title, recentLines });
   }
 
+  function openPaneInteraction(paneId: string) {
+    paneApis.current[paneId]?.openInteraction();
+  }
+
+  function updatePaneInteractionState(paneId: string, next: { hasProducer: boolean; hasPending: boolean }) {
+    setPaneInteractionState((current) => {
+      const existing = current[paneId];
+      if (existing?.hasProducer === next.hasProducer && existing?.hasPending === next.hasPending) return current;
+      return { ...current, [paneId]: next };
+    });
+  }
+
   function sendCommandInput(value: string) {
     if (!commandInput) return;
     paneApis.current[commandInput.paneId]?.sendInput(`${value}\r`);
@@ -329,15 +342,18 @@ export function App() {
         activeWorkspaceId={activeWorkspaceId}
         paneStatus={paneStatus}
         paneFontSize={paneFontSize}
+        paneInteractionState={paneInteractionState}
         terminalFocusToken={terminalFocusToken}
         onActivateWorkspace={activateWorkspace}
         onSetActivePane={setActivePane}
         onRenamePane={openRenamePane}
         onAdjustPaneFontSize={adjustPaneFontSize}
         onOpenCommandInput={openCommandInput}
+        onOpenPaneInteraction={openPaneInteraction}
         onSplitPane={splitPane}
         onClosePane={closePane}
         onPaneStatus={reportPaneStatus}
+        onPaneInteractionState={updatePaneInteractionState}
         onRegisterPaneApi={registerPaneApi}
       />
       <CommandPalette actions={actions} />

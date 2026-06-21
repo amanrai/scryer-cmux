@@ -2,6 +2,24 @@ import os from 'node:os';
 import * as pty from 'node-pty';
 import { maxReplayBytes, shell, shellArgs } from './config.mjs';
 
+const interactionsUrl = (process.env.SCRYER_INTERACTIONS_URL || 'http://127.0.0.1:43217').replace(/\/$/, '');
+const producerMarkerRe = /@@SCRYER_INTERACTION_PRODUCER_V1@@(\{[^@]*\})@@END_SCRYER_INTERACTION_PRODUCER@@/g;
+const interactionPollMs = Number(process.env.SCRYER_INTERACTIONS_POLL_MS || 1500);
+
+function normalizeTerminalText(text) {
+  return String(text)
+    // OSC sequences, including hyperlink resets.
+    .replace(/\x1b\][\s\S]*?(?:\x07|\x1b\\)/g, '')
+    // CSI SGR/cursor/control sequences.
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
+    // Other short escape sequences.
+    .replace(/\x1b[@-Z\\-_]/g, '')
+    // Pi's rendered message can wrap/pad the marker across terminal rows.
+    // The producer marker JSON is emitted with JSON.stringify(), so whitespace
+    // inside the marker is display noise for our routing fields.
+    .replace(/\s+/g, '');
+}
+
 // Terminal-detection markers that tools (e.g. pi-coding-agent's pi-tui) use to
 // pick an inline-image protocol. smux renders via @xterm/addon-image, which
 // supports Sixel + the iTerm2 inline-image protocol but NOT the kitty protocol.
@@ -34,8 +52,28 @@ function buildPtyEnv(paneId) {
 export class SessionManager {
   #sessions = new Map();
 
-  constructor(send) {
+  constructor(send, { onProducer } = {}) {
     this.send = send;
+    this.onProducer = onProducer;
+    this.producerByPane = new Map();
+    this.pollTimer = setInterval(() => this.#pollInteractions(), interactionPollMs);
+  }
+
+  setProducer(paneId, producer) {
+    if (!producer?.from) return;
+    const current = this.producerByPane.get(paneId);
+    if (current?.emittedAt && producer.emittedAt && Date.parse(current.emittedAt) > Date.parse(producer.emittedAt)) return;
+    this.producerByPane.set(paneId, producer);
+    this.onProducer?.(paneId, producer);
+    const session = this.#sessions.get(paneId);
+    if (session) {
+      session.producer = producer;
+      for (const ws of session.clients) this.send(ws, { type: 'interaction_producer', producer });
+    }
+  }
+
+  loadProducers(panes) {
+    for (const pane of panes) if (pane?.interactionProducer?.from) this.producerByPane.set(pane.id, pane.interactionProducer);
   }
 
   get(paneId) {
@@ -69,6 +107,7 @@ export class SessionManager {
       cwd: os.homedir(),
       paneId,
       replayed: Boolean(session.replay),
+      interactionProducer: session.producer ?? null,
       message: `server pty session on ${os.hostname()}`,
     });
     if (session.replay) this.send(ws, { type: 'output', data: session.replay, replay: true });
@@ -86,7 +125,7 @@ export class SessionManager {
       env: buildPtyEnv(paneId),
     });
 
-    const session = { paneId, term, clients: new Set(), replay: '', exited: false };
+    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null };
     term.onData((data) => this.#broadcastData(session, data));
     term.onExit(({ exitCode, signal }) => this.#handleExit(session, exitCode, signal));
     this.#sessions.set(paneId, session);
@@ -95,7 +134,39 @@ export class SessionManager {
 
   #broadcastData(session, data) {
     session.replay = `${session.replay}${data}`.slice(-maxReplayBytes);
+    this.#scanProducerMarkers(session);
     for (const ws of session.clients) this.send(ws, { type: 'output', data });
+  }
+
+  #scanProducerMarkers(session) {
+    const normalized = normalizeTerminalText(session.replay);
+    for (const match of normalized.matchAll(producerMarkerRe)) {
+      try {
+        const producer = JSON.parse(match[1]);
+        if (typeof producer.from === 'string' && producer.from) this.setProducer(session.paneId, producer);
+      } catch {}
+    }
+  }
+
+  async #pollInteractions() {
+    for (const session of this.#sessions.values()) {
+      const from = session.producer?.from;
+      if (!from) continue;
+      try {
+        const res = await fetch(`${interactionsUrl}/api/requests/active?from=${encodeURIComponent(from)}`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        const request = Array.isArray(data.requests) ? data.requests[0] : null;
+        if (request && request.id !== session.activeInteractionId) {
+          session.activeInteractionId = request.id;
+          for (const ws of session.clients) this.send(ws, { type: 'interaction', request });
+        } else if (!request && session.activeInteractionId) {
+          const requestId = session.activeInteractionId;
+          session.activeInteractionId = null;
+          for (const ws of session.clients) this.send(ws, { type: 'interaction_clear', requestId });
+        }
+      } catch {}
+    }
   }
 
   #handleExit(session, exitCode, signal) {
@@ -120,6 +191,29 @@ export class SessionManager {
     if (msg.type === 'paste') session.term.write(String(msg.text ?? ''));
     if (msg.type === 'interrupt') session.term.write('\x03');
     if (msg.type === 'resize') this.#resize(session, msg);
+    if (msg.type === 'interaction_response') this.#submitInteractionResponse(session, msg);
+  }
+
+  async #submitInteractionResponse(session, msg) {
+    const request = msg.request;
+    if (!request?.id || !request?.from || !msg.response) return;
+    try {
+      const res = await fetch(`${interactionsUrl}/api/responses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: globalThis.crypto.randomUUID(),
+          requestId: request.id,
+          from: request.from,
+          responder: { kind: 'smux', paneId: session.paneId },
+          response: msg.response,
+        }),
+      });
+      if (res.ok) {
+        session.activeInteractionId = null;
+        for (const ws of session.clients) this.send(ws, { type: 'interaction_clear', requestId: request.id });
+      }
+    } catch {}
   }
 
   #resize(session, msg) {
