@@ -45,6 +45,7 @@ export function App() {
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
   const [paneStatus, setPaneStatus] = useState<Record<string, PaneStatus>>({});
   const [paneInteractionState, setPaneInteractionState] = useState<Record<string, { hasProducer: boolean; hasPending: boolean }>>({});
+  const [paneActivityState, setPaneActivityState] = useState<Record<string, { count: number; unread: number; latestLevel?: string; latestKind?: string }>>({});
   const [themeName, setThemeName] = useState<SmuxThemeName>(loadThemeName);
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
@@ -72,13 +73,17 @@ export function App() {
   useEffect(() => {
     const scrollableSelector = [
       '.interaction-pane-modal',
+      '.activity-pane-modal',
+      '.scryer-picker-modal',
       '.quick-input-modal',
       '.command-input-modal',
       '.command-context',
       '.terminal-accessory',
       '.palette',
-      '.workspace-sidebar',
+      '.workspace-list',
     ].join(',');
+
+    const interactiveSelector = 'button, a, input, select, textarea, [role="button"], [tabindex]';
 
     function preventPageTouchScroll(event: TouchEvent) {
       const target = event.target as Element | null;
@@ -86,13 +91,22 @@ export function App() {
       event.preventDefault();
     }
 
+    function preventPageTouchStart(event: TouchEvent) {
+      const target = event.target as Element | null;
+      if (target?.closest(scrollableSelector)) return;
+      if (target?.closest(interactiveSelector)) return;
+      event.preventDefault();
+    }
+
     function lockPageScroll() {
       if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
     }
 
+    document.addEventListener('touchstart', preventPageTouchStart, { passive: false });
     document.addEventListener('touchmove', preventPageTouchScroll, { passive: false });
     window.addEventListener('scroll', lockPageScroll, { passive: true });
     return () => {
+      document.removeEventListener('touchstart', preventPageTouchStart);
       document.removeEventListener('touchmove', preventPageTouchScroll);
       window.removeEventListener('scroll', lockPageScroll);
     };
@@ -128,8 +142,7 @@ export function App() {
   }
 
   function focusActiveTerminalSoon() {
-    window.setTimeout(() => setTerminalFocusToken((token) => token + 1), 0);
-    window.setTimeout(() => setTerminalFocusToken((token) => token + 1), 120);
+    window.setTimeout(() => setTerminalFocusToken((token) => token + 1), 50);
   }
 
   function activateWorkspace(workspaceId: string) {
@@ -323,6 +336,14 @@ export function App() {
     paneApis.current[paneId]?.openInteraction();
   }
 
+  function openPaneActivity(paneId: string) {
+    paneApis.current[paneId]?.openActivity();
+  }
+
+  function openPaneScryerPicker(paneId: string) {
+    paneApis.current[paneId]?.openScryerPicker();
+  }
+
   function openPaneQuickInputs(paneId: string) {
     paneApis.current[paneId]?.openQuickInputs();
   }
@@ -331,6 +352,14 @@ export function App() {
     setPaneInteractionState((current) => {
       const existing = current[paneId];
       if (existing?.hasProducer === next.hasProducer && existing?.hasPending === next.hasPending) return current;
+      return { ...current, [paneId]: next };
+    });
+  }
+
+  function updatePaneActivityState(paneId: string, next: { count: number; unread: number; latestLevel?: string; latestKind?: string }) {
+    setPaneActivityState((current) => {
+      const existing = current[paneId];
+      if (existing?.count === next.count && existing?.unread === next.unread && existing?.latestLevel === next.latestLevel && existing?.latestKind === next.latestKind) return current;
       return { ...current, [paneId]: next };
     });
   }
@@ -357,9 +386,21 @@ export function App() {
     closePane,
   });
 
+  const commandActions = useMemo(() => [
+    { id: 'appearance-heading', separator: true, icon: '', label: 'Appearance' },
+    {
+      id: 'toggle-theme',
+      icon: themeName === 'sunlight' ? 'fa-solid fa-moon' : 'fa-solid fa-sun',
+      label: themeName === 'sunlight' ? 'Switch to dark mode' : 'Switch to light mode',
+      hint: themeName === 'sunlight' ? 'currently light' : 'currently dark',
+      onSelect: () => setThemeName((value) => value === 'sunlight' ? 'dark' : 'sunlight'),
+    },
+    ...actions,
+  ], [actions, themeName]);
+
   return (
     <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': themeName === 'sunlight' ? '#005FCC' : activeWorkspace.color })}>
-      <HostBar hostName={hostName} stateStatus={stateStatus} themeName={themeName} onToggleTheme={() => setThemeName((value) => value === 'sunlight' ? 'dark' : 'sunlight')} />
+      <HostBar hostName={hostName} stateStatus={stateStatus} />
       <WorkspaceSidebar
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -386,6 +427,7 @@ export function App() {
         paneStatus={paneStatus}
         paneFontSize={paneFontSize}
         paneInteractionState={paneInteractionState}
+        paneActivityState={paneActivityState}
         themeName={themeName}
         terminalFocusToken={terminalFocusToken}
         onActivateWorkspace={activateWorkspace}
@@ -394,14 +436,17 @@ export function App() {
         onAdjustPaneFontSize={adjustPaneFontSize}
         onOpenCommandInput={openCommandInput}
         onOpenPaneInteraction={openPaneInteraction}
+        onOpenPaneActivity={openPaneActivity}
+        onOpenPaneScryerPicker={openPaneScryerPicker}
         onOpenPaneQuickInputs={openPaneQuickInputs}
         onSplitPane={splitPane}
         onClosePane={closePane}
         onPaneStatus={reportPaneStatus}
         onPaneInteractionState={updatePaneInteractionState}
+        onPaneActivityState={updatePaneActivityState}
         onRegisterPaneApi={registerPaneApi}
       />
-      <CommandPalette actions={actions} />
+      <CommandPalette actions={commandActions} />
       {colorPicker ? <ColorPicker picker={colorPicker} workspaces={workspaces} onSetColor={setWorkspaceColor} onClose={() => setColorPicker(null)} /> : null}
       {workspaceMenu ? (
         <WorkspaceContextMenu

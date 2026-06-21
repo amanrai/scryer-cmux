@@ -56,7 +56,10 @@ export class SessionManager {
     this.send = send;
     this.onProducer = onProducer;
     this.producerByPane = new Map();
-    this.pollTimer = setInterval(() => this.#pollInteractions(), interactionPollMs);
+    this.pollTimer = setInterval(() => {
+      this.#pollInteractions();
+      this.#pollUpdates();
+    }, interactionPollMs);
   }
 
   setProducer(paneId, producer) {
@@ -68,6 +71,7 @@ export class SessionManager {
     const session = this.#sessions.get(paneId);
     if (session) {
       session.producer = producer;
+      session.lastUpdateSince = '';
       for (const ws of session.clients) this.send(ws, { type: 'interaction_producer', producer });
     }
   }
@@ -112,7 +116,7 @@ export class SessionManager {
     });
     if (session.replay) this.send(ws, { type: 'output', data: session.replay, replay: true });
 
-    ws.on('message', (raw) => this.#handleMessage(session, raw));
+    ws.on('message', (raw) => this.#handleMessage(session, ws, raw));
     ws.on('close', () => session.clients.delete(ws));
   }
 
@@ -125,7 +129,7 @@ export class SessionManager {
       env: buildPtyEnv(paneId),
     });
 
-    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null };
+    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null, lastUpdateSince: '', altScreen: false };
     term.onData((data) => this.#broadcastData(session, data));
     term.onExit(({ exitCode, signal }) => this.#handleExit(session, exitCode, signal));
     this.#sessions.set(paneId, session);
@@ -134,6 +138,17 @@ export class SessionManager {
 
   #broadcastData(session, data) {
     session.replay = `${session.replay}${data}`.slice(-maxReplayBytes);
+    // Only truncate on \x1b[3J (erase saved lines — what `clear` emits to wipe scrollback).
+    // Never truncate on \x1b[2J alone: TUIs use that for every frame redraw.
+    const clearRe = /\x1b\[3J/g;
+    let lastClearEnd = -1;
+    let m;
+    while ((m = clearRe.exec(session.replay)) !== null) lastClearEnd = m.index + m[0].length;
+    if (lastClearEnd >= 0) session.replay = session.replay.slice(lastClearEnd);
+    // Track alternate screen state so we know whether a TUI is active.
+    const altScreenRe = /\x1b\[\?1049([hl])/g;
+    let am;
+    while ((am = altScreenRe.exec(data)) !== null) session.altScreen = am[1] === 'h';
     this.#scanProducerMarkers(session);
     for (const ws of session.clients) this.send(ws, { type: 'output', data });
   }
@@ -169,6 +184,24 @@ export class SessionManager {
     }
   }
 
+  async #pollUpdates() {
+    for (const session of this.#sessions.values()) {
+      const from = session.producer?.from;
+      if (!from || session.clients.size === 0) continue;
+      try {
+        const since = session.lastUpdateSince ? `&since=${encodeURIComponent(session.lastUpdateSince)}` : '';
+        const res = await fetch(`${interactionsUrl}/api/updates?from=${encodeURIComponent(from)}${since}&limit=100`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        const updates = Array.isArray(data.updates) ? data.updates : [];
+        if (!updates.length) continue;
+        const latest = updates[updates.length - 1];
+        if (latest?.receivedAt) session.lastUpdateSince = latest.receivedAt;
+        for (const ws of session.clients) this.send(ws, { type: 'session_updates', updates });
+      } catch {}
+    }
+  }
+
   #handleExit(session, exitCode, signal) {
     session.exited = true;
     for (const ws of session.clients) {
@@ -178,7 +211,7 @@ export class SessionManager {
     this.#sessions.delete(session.paneId);
   }
 
-  #handleMessage(session, raw) {
+  #handleMessage(session, ws, raw) {
     let msg;
     try {
       msg = JSON.parse(raw.toString());

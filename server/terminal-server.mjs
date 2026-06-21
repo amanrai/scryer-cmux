@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
-import { port } from './config.mjs';
+import { port, pmUrl } from './config.mjs';
 import { getDisplayHostName } from './host-name.mjs';
 import { corsHeaders, json, readTextBody } from './http-utils.mjs';
 import { handleUpload } from './uploads.mjs';
@@ -49,6 +49,21 @@ async function handleStateWrite(req, res) {
   }
 }
 
+async function proxyPm(req, res, pmPath) {
+  try {
+    const upstream = await fetch(`${pmUrl}${pmPath}`);
+    const text = await upstream.text();
+    if (!upstream.ok) {
+      json(res, upstream.status, { error: `PM API ${upstream.status}`, body: text });
+      return;
+    }
+    res.writeHead(200, { 'content-type': upstream.headers.get('content-type') || 'application/json', ...corsHeaders() });
+    res.end(text);
+  } catch (error) {
+    json(res, 502, { error: error instanceof Error ? error.message : 'PM API unavailable' });
+  }
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
 
@@ -75,6 +90,27 @@ const server = createServer(async (req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/api/upload') {
     await handleUpload(req, res);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/pm/projects') {
+    await proxyPm(req, res, '/api/projects');
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/pm/tasks') {
+    const projectId = url.searchParams.get('project_id') || '';
+    if (!projectId) {
+      json(res, 400, { error: 'project_id query param required' });
+      return;
+    }
+    await proxyPm(req, res, `/api/tasks?project_id=${encodeURIComponent(projectId)}`);
+    return;
+  }
+
+  const pmTaskMatch = url.pathname.match(/^\/api\/pm\/tasks\/([^/]+)$/);
+  if (req.method === 'GET' && pmTaskMatch) {
+    await proxyPm(req, res, `/api/tasks/${encodeURIComponent(decodeURIComponent(pmTaskMatch[1]))}`);
     return;
   }
 

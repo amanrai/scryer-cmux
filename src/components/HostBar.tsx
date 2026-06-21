@@ -1,13 +1,9 @@
-import type { SmuxThemeName } from '../terminal/theme';
-
 type HostBarProps = {
   hostName: string;
   stateStatus: 'loading' | 'synced' | 'offline';
-  themeName: SmuxThemeName;
-  onToggleTheme: () => void;
 };
 
-export function HostBar({ hostName, stateStatus, themeName, onToggleTheme }: HostBarProps) {
+export function HostBar({ hostName, stateStatus }: HostBarProps) {
   return (
     <header className="host-bar">
       <div className="host-identity">
@@ -18,20 +14,12 @@ export function HostBar({ hostName, stateStatus, themeName, onToggleTheme }: Hos
       <button
         className="palette-trigger"
         type="button"
-        title={themeName === 'sunlight' ? 'Switch to dark theme' : 'Switch to hi-viz sunlight theme'}
-        aria-label="Toggle hi-viz sunlight theme"
-        onClick={onToggleTheme}
-      >
-        <i className="fa-solid fa-sun" aria-hidden="true" />
-        <span>{themeName === 'sunlight' ? 'Sunlight' : 'Dark'}</span>
-      </button>
-      <button
-        className="palette-trigger"
-        type="button"
-        title="Command palette"
+        title="Command palette (⌘K)"
         aria-label="Open command palette"
         onClick={() => window.dispatchEvent(new CustomEvent('smux:open-palette'))}
       >
+        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+        <span className="palette-trigger-label">Commands</span>
         <span className="kbd">⌘K</span>
       </button>
     </header>

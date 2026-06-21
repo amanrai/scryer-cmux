@@ -12,6 +12,7 @@ type TerminalStageProps = {
   paneStatus: Record<string, PaneStatus>;
   paneFontSize: Record<string, number>;
   paneInteractionState: Record<string, { hasProducer: boolean; hasPending: boolean }>;
+  paneActivityState: Record<string, { count: number; unread: number; latestLevel?: string; latestKind?: string }>;
   themeName: SmuxThemeName;
   terminalFocusToken: number;
   onActivateWorkspace: (workspaceId: string) => void;
@@ -20,11 +21,14 @@ type TerminalStageProps = {
   onAdjustPaneFontSize: (paneId: string, delta: number) => void;
   onOpenCommandInput: (pane: PaneModel, workspaceId: string) => void;
   onOpenPaneInteraction: (paneId: string) => void;
+  onOpenPaneActivity: (paneId: string) => void;
+  onOpenPaneScryerPicker: (paneId: string) => void;
   onOpenPaneQuickInputs: (paneId: string) => void;
   onSplitPane: (direction: WorkspaceModel['layout']) => void;
   onClosePane: (paneId: string) => void;
   onPaneStatus: (paneId: string, status: PaneStatus) => void;
   onPaneInteractionState: (paneId: string, state: { hasProducer: boolean; hasPending: boolean }) => void;
+  onPaneActivityState: (paneId: string, state: { count: number; unread: number; latestLevel?: string; latestKind?: string }) => void;
   onRegisterPaneApi: (paneId: string, api: TerminalPaneApi | null) => void;
 };
 
@@ -36,6 +40,7 @@ export function TerminalStage({
   paneStatus,
   paneFontSize,
   paneInteractionState,
+  paneActivityState,
   themeName,
   terminalFocusToken,
   onActivateWorkspace,
@@ -44,11 +49,14 @@ export function TerminalStage({
   onAdjustPaneFontSize,
   onOpenCommandInput,
   onOpenPaneInteraction,
+  onOpenPaneActivity,
+  onOpenPaneScryerPicker,
   onOpenPaneQuickInputs,
   onSplitPane,
   onClosePane,
   onPaneStatus,
   onPaneInteractionState,
+  onPaneActivityState,
   onRegisterPaneApi,
 }: TerminalStageProps) {
   return (
@@ -70,6 +78,7 @@ export function TerminalStage({
                 const isActive = workspace.id === activeWorkspaceId && pane.id === workspace.activePaneId;
                 const status = paneStatus[pane.id] ?? 'connecting';
                 const interactionState = paneInteractionState[pane.id] ?? { hasProducer: false, hasPending: false };
+                const activityState = paneActivityState[pane.id] ?? { count: 0, unread: 0 };
                 return (
                   <article
                     key={pane.id}
@@ -102,6 +111,7 @@ export function TerminalStage({
                         <button className="pane-action" type="button" title="Increase font size" aria-label="Increase font size" onClick={() => onAdjustPaneFontSize(pane.id, 1)}>
                           <i className="fa-solid fa-magnifying-glass-plus" aria-hidden="true" />
                         </button>
+                        <span className="pane-action-divider" aria-hidden="true" />
                         <button
                           className={`pane-action interaction ${interactionState.hasProducer ? 'listening' : ''}${interactionState.hasPending ? ' pending' : ''}`}
                           type="button"
@@ -111,20 +121,20 @@ export function TerminalStage({
                         >
                           <i className="fa-solid fa-comments" aria-hidden="true" />
                         </button>
-                        <button className="pane-action" type="button" title="Quick inputs" aria-label="Quick inputs" onClick={() => onOpenPaneQuickInputs(pane.id)}>
-                          <i className="fa-solid fa-bolt" aria-hidden="true" />
-                        </button>
                         <button
-                          className="pane-action"
+                          className={`pane-action activity ${activityState.unread ? 'unread' : ''} ${activityState.latestLevel ? `level-${activityState.latestLevel}` : ''}`}
                           type="button"
-                          title="Compose input"
-                          aria-label="Compose input"
-                          onClick={() => {
-                            onActivateWorkspace(workspace.id);
-                            onSetActivePane(pane.id, workspace.id);
-                            onOpenCommandInput(pane, workspace.id);
-                          }}
+                          title={activityState.count ? `Open agent activity (${activityState.count} updates)` : interactionState.hasProducer ? 'Open agent activity' : 'No interaction producer detected'}
+                          aria-label="Agent activity"
+                          onClick={() => onOpenPaneActivity(pane.id)}
                         >
+                          <i className="fa-solid fa-timeline" aria-hidden="true" />
+                          {activityState.unread ? <span className="pane-action-badge">{Math.min(99, activityState.unread)}</span> : null}
+                        </button>
+                        <button className="pane-action" type="button" title="Pick Scryer project/ticket" aria-label="Pick Scryer project or ticket" onClick={() => onOpenPaneScryerPicker(pane.id)}>
+                          <i className="fa-solid fa-diagram-project" aria-hidden="true" />
+                        </button>
+                        <button className="pane-action" type="button" title="Quick inputs" aria-label="Quick inputs" onClick={() => onOpenPaneQuickInputs(pane.id)}>
                           <i className="fa-solid fa-keyboard" aria-hidden="true" />
                         </button>
                         <span className="pane-action-divider" aria-hidden="true" />
@@ -151,6 +161,7 @@ export function TerminalStage({
                       onStatus={onPaneStatus}
                       onRegisterApi={onRegisterPaneApi}
                       onInteractionState={onPaneInteractionState}
+                      onActivityState={onPaneActivityState}
                       onOpenCommandInput={() => {
                         onActivateWorkspace(workspace.id);
                         onSetActivePane(pane.id, workspace.id);

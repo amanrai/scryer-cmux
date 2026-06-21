@@ -1,6 +1,6 @@
 export const workspaceColors = [
-  { name: 'Amber', value: '#E8B65A' },
   { name: 'Blue', value: '#5AA6F0' },
+  { name: 'Amber', value: '#E8B65A' },
   { name: 'Green', value: '#6FCB7F' },
   { name: 'Cyan', value: '#4FC9D4' },
   { name: 'Purple', value: '#B47BE8' },

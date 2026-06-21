@@ -6,6 +6,8 @@
   background: rgba(10, 11, 14, 0.55);
   backdrop-filter: blur(3px);
   animation: fade 0.12s ease;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 .palette {
   position: fixed;

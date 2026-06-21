@@ -44,7 +44,10 @@ export function CommandInputModal({ paneTitle, recentLines, onSend, onCancel }: 
               onClick={() => setContextExpanded((value) => !value)}
             >
               <span>Terminal state</span>
-              <span className="command-context-toggle-hint">{contextExpanded ? 'Collapse' : 'Expand'}</span>
+              <span className="command-context-toggle-hint">
+                <i className={`fa-solid ${contextExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}`} aria-hidden="true" />
+                {contextExpanded ? 'Collapse' : 'Expand'}
+              </span>
             </button>
             <div className="command-context">
               {visibleLines.map((line, index) => (

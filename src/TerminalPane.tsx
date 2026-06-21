@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
 import '@xterm/xterm/css/xterm.css';
-import { WS_BASE } from './constants';
+import { API_BASE, WS_BASE } from './constants';
 import { terminalTheme } from './terminal/theme';
 import type { SmuxThemeName } from './terminal/theme';
 import { shellQuote, uploadFile } from './terminal/upload';
@@ -16,11 +16,25 @@ type InteractionRequest = {
   kind: string;
   payload: { title?: string; body?: string; choices?: InteractionChoice[] };
 };
+type SessionUpdate = {
+  id: string;
+  from: string;
+  kind: 'progress' | 'decision' | 'blocked' | 'waiting' | 'done' | 'error' | string;
+  title: string;
+  body: string;
+  level?: 'info' | 'success' | 'warning' | 'error' | string;
+  receivedAt?: string;
+  createdAt?: string;
+};
+type PmProject = { id: string; name: string; slug?: string; description_md?: string; relative_repo_path?: string; remote_repo_url?: string };
+type PmTask = { id: string; title: string; status?: string; updated_at?: string; description_md?: string; tags?: Array<{ name?: string }> };
 
 export type TerminalPaneApi = {
   sendInput: (data: string) => void;
   getRecentLines: (count?: number) => string[];
   openInteraction: () => void;
+  openActivity: () => void;
+  openScryerPicker: () => void;
   openQuickInputs: () => void;
 };
 
@@ -35,49 +49,273 @@ type TerminalPaneProps = {
   onRegisterApi?: (paneId: string, api: TerminalPaneApi | null) => void;
   onOpenCommandInput?: () => void;
   onInteractionState?: (paneId: string, state: { hasProducer: boolean; hasPending: boolean }) => void;
+  onActivityState?: (paneId: string, state: { count: number; unread: number; latestLevel?: string; latestKind?: string }) => void;
 };
 
 type QuickInput = { label: string; description?: string; data: string; icon: string };
+type QuickInputGroup = { label: string; items: QuickInput[] };
 
-const quickInputs: QuickInput[] = [
-  { label: 'Esc', description: 'Send escape', data: '\x1b', icon: 'fa-door-open' },
-  { label: 'Tab', description: 'Autocomplete / indent', data: '\t', icon: 'fa-arrow-right-to-bracket' },
-  { label: 'Enter', description: 'Submit current line', data: '\r', icon: 'fa-turn-down' },
-  { label: 'Ctrl-C', description: 'Interrupt', data: '\x03', icon: 'fa-ban' },
-  { label: 'Ctrl-D', description: 'EOF / exit', data: '\x04', icon: 'fa-right-from-bracket' },
-  { label: 'Ctrl-L', description: 'Clear screen', data: '\x0c', icon: 'fa-broom' },
-  { label: '↑', description: 'Previous history', data: '\x1b[A', icon: 'fa-arrow-up' },
-  { label: '↓', description: 'Next history', data: '\x1b[B', icon: 'fa-arrow-down' },
-  { label: '/comms-init', description: 'Re-emit interaction producer marker', data: '/comms-init\r', icon: 'fa-satellite-dish' },
-  { label: '/comms-test', description: 'Create test interaction', data: '/comms-test\r', icon: 'fa-vial' },
-  { label: '/comms-status', description: 'Show comms state', data: '/comms-status\r', icon: 'fa-signal' },
-  { label: '/reload', description: 'Reload Pi extensions', data: '/reload\r', icon: 'fa-rotate' },
-  { label: '/scryer', description: 'Show Scryer command list', data: '/scryer\r', icon: 'fa-list' },
-  { label: 'Commit & push', description: 'Ask agent to commit and push', data: 'commit and push the current changes\r', icon: 'fa-cloud-arrow-up' },
-  { label: 'git status', description: 'Run git status', data: 'git status\r', icon: 'fa-code-branch' },
-  { label: 'clear', description: 'Clear terminal', data: 'clear\r', icon: 'fa-eraser' },
+const quickInputGroups: QuickInputGroup[] = [
+  {
+    label: 'Terminal',
+    items: [
+      { label: 'Esc', description: 'Send escape', data: '\x1b', icon: 'fa-door-open' },
+      { label: 'Tab', description: 'Autocomplete / indent', data: '\t', icon: 'fa-arrow-right-to-bracket' },
+      { label: 'Enter', description: 'Submit current line', data: '\r', icon: 'fa-turn-down' },
+      { label: 'Ctrl-C', description: 'Interrupt', data: '\x03', icon: 'fa-ban' },
+      { label: 'Ctrl-D', description: 'EOF / exit', data: '\x04', icon: 'fa-right-from-bracket' },
+      { label: 'Ctrl-L', description: 'Clear screen', data: '\x0c', icon: 'fa-broom' },
+    ],
+  },
+  {
+    label: 'Navigate',
+    items: [
+      { label: '↑', description: 'Previous history', data: '\x1b[A', icon: 'fa-arrow-up' },
+      { label: '↓', description: 'Next history', data: '\x1b[B', icon: 'fa-arrow-down' },
+    ],
+  },
+  {
+    label: 'Agent',
+    items: [
+      { label: 'Force exit', description: 'Double Ctrl-C — stop agent or TUI', data: '\x03\x03', icon: 'fa-circle-stop' },
+      { label: '/comms-init', description: 'Re-emit interaction producer', data: '/comms-init\r', icon: 'fa-satellite-dish' },
+      { label: '/comms-test', description: 'Create test interaction', data: '/comms-test\r', icon: 'fa-vial' },
+      { label: '/comms-test-update', description: 'Create test activity update', data: '/comms-test-update\r', icon: 'fa-timeline' },
+      { label: '/comms-status', description: 'Show comms state', data: '/comms-status\r', icon: 'fa-signal' },
+      { label: '/save', description: 'Save current Scryer session summary', data: '/save\r', icon: 'fa-floppy-disk' },
+      { label: '/reload', description: 'Reload extensions', data: '/reload\r', icon: 'fa-rotate' },
+      { label: '/scryer', description: 'Scryer command list', data: '/scryer\r', icon: 'fa-list' },
+    ],
+  },
+  {
+    label: 'Git & Project',
+    items: [
+      { label: 'Commit & push', description: 'Ask agent to commit and push', data: 'commit and push the current changes\r', icon: 'fa-cloud-arrow-up' },
+      { label: 'git status', description: 'Run git status', data: 'git status\r', icon: 'fa-code-branch' },
+      { label: 'clear', description: 'Clear terminal', data: 'clear\r', icon: 'fa-eraser' },
+    ],
+  },
 ];
 
-function QuickInputsModal({ onClose, onSend }: { onClose: () => void; onSend: (data: string) => void }) {
+function QuickInputsModal({ onClose, onSend, onOpenCompose }: { onClose: () => void; onSend: (data: string) => void; onOpenCompose: () => void }) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [onClose]);
+
   return (
     <div className="quick-input-modal" onMouseDown={(event) => event.stopPropagation()}>
       <div className="interaction-pane-header">
-        <div className="interaction-eyebrow"><i className="fa-solid fa-bolt" aria-hidden="true" /> Quick inputs</div>
-        <button type="button" className="interaction-close" title="Close" onClick={onClose}>
+        <div className="interaction-eyebrow"><i className="fa-solid fa-bolt" aria-hidden="true" /> Quick Inputs</div>
+        <button type="button" className="interaction-close" title="Close (Esc)" onClick={onClose}>
           <i className="fa-solid fa-xmark" aria-hidden="true" />
         </button>
       </div>
-      <div className="quick-input-grid">
-        {quickInputs.map((item) => (
-          <button key={item.label} type="button" className="quick-input-item" onClick={() => onSend(item.data)}>
-            <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-            <span>
-              <strong>{item.label}</strong>
-              {item.description ? <small>{item.description}</small> : null}
-            </span>
-          </button>
+      <div className="quick-input-groups">
+        {quickInputGroups.map((group) => (
+          <section key={group.label} className="quick-input-section">
+            <div className="quick-input-section-label">{group.label}</div>
+            <div className="quick-input-grid">
+              {group.items.map((item) => (
+                <button key={item.label} type="button" className="quick-input-item" onClick={() => onSend(item.data)}>
+                  <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+                  <span>
+                    <strong>{item.label}</strong>
+                    {item.description ? <small>{item.description}</small> : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
+      <button type="button" className="quick-input-compose-btn" onClick={onOpenCompose}>
+        <i className="fa-solid fa-keyboard" aria-hidden="true" />
+        Type…
+      </button>
+    </div>
+  );
+}
+
+function compactText(value: unknown, max = 120) {
+  return String(value ?? '').replace(/[#*_`>\-\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function taskDescription(task: PmTask) {
+  const parts = [String(task.status ?? 'unknown')];
+  const tags = (task.tags ?? []).map((tag) => tag.name).filter(Boolean).slice(0, 3).join(', ');
+  if (tags) parts.push(tags);
+  const desc = compactText(task.description_md, 90);
+  if (desc) parts.push(desc);
+  return parts.join(' · ');
+}
+
+function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (data: string) => void }) {
+  const [projects, setProjects] = useState<PmProject[]>([]);
+  const [tasks, setTasks] = useState<PmTask[]>([]);
+  const [selectedProject, setSelectedProject] = useState<PmProject | null>(null);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState('projects');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [onClose]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading('projects');
+    fetch(`${API_BASE}/api/pm/projects`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setProjects(list.filter((project) => project?.id && project?.name).sort((a, b) => String(a.name).localeCompare(String(b.name))));
+        setLoading('');
+      })
+      .catch((err) => { if (!cancelled) { setError(err?.message ?? String(err)); setLoading(''); } });
+    return () => { cancelled = true; };
+  }, []);
+
+  function selectProject(project: PmProject) {
+    setSelectedProject(project);
+    setQuery('');
+    setTasks([]);
+    setError('');
+    setLoading('tickets');
+    onSend(`/pp ${project.id}\r`);
+    fetch(`${API_BASE}/api/pm/tasks?project_id=${encodeURIComponent(project.id)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      })
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setTasks(list.filter((task) => task?.id && task?.title).sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? ''))));
+        setLoading('');
+      })
+      .catch((err) => { setError(err?.message ?? String(err)); setLoading(''); });
+  }
+
+  function selectTask(task: PmTask) {
+    onSend(`/tp ${task.id}\r`);
+    onClose();
+  }
+
+  const q = query.trim().toLowerCase();
+  const filteredProjects = projects.filter((project) => !q || `${project.name} ${project.slug ?? ''} ${project.remote_repo_url ?? ''} ${project.relative_repo_path ?? ''}`.toLowerCase().includes(q)).slice(0, 80);
+  const filteredTasks = tasks.filter((task) => !q || `${task.title} ${task.status ?? ''} ${compactText(task.description_md, 300)}`.toLowerCase().includes(q)).slice(0, 80);
+
+  return (
+    <div className="scryer-picker-modal" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="interaction-pane-header">
+        <div className="interaction-eyebrow"><i className="fa-solid fa-diagram-project" aria-hidden="true" /> Scryer picker</div>
+        <button type="button" className="interaction-close" title="Close (Esc)" onClick={onClose}>
+          <i className="fa-solid fa-xmark" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="scryer-picker-search-row">
+        {selectedProject ? <button type="button" className="ghost-button" onClick={() => { setSelectedProject(null); setQuery(''); }}>Projects</button> : null}
+        <input
+          className="scryer-picker-search"
+          value={query}
+          autoFocus
+          placeholder={selectedProject ? `Search tickets in ${selectedProject.name}…` : 'Search projects…'}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+      {selectedProject ? <div className="scryer-picker-context">Project selected: <strong>{selectedProject.name}</strong>. Choose a ticket, or close to keep project only.</div> : null}
+      {error ? <div className="scryer-picker-error">{error}</div> : null}
+      {loading ? <div className="activity-empty">Loading {loading}…</div> : null}
+      {!selectedProject ? (
+        <div className="scryer-picker-list">
+          {filteredProjects.map((project) => (
+            <button key={project.id} type="button" className="scryer-picker-item" onClick={() => selectProject(project)}>
+              <strong>{project.name}</strong>
+              <small>{[project.slug, project.relative_repo_path, compactText(project.description_md)].filter(Boolean).join(' · ')}</small>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="scryer-picker-list">
+          {filteredTasks.map((task) => (
+            <button key={task.id} type="button" className="scryer-picker-item" onClick={() => selectTask(task)}>
+              <strong>{task.title}</strong>
+              <small>{taskDescription(task)}</small>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatUpdateTime(update: SessionUpdate) {
+  const raw = update.receivedAt ?? update.createdAt;
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function ActivityPaneModal({ updates, onClose, onDismissUpdate, onDismissAll }: {
+  updates: SessionUpdate[];
+  onClose: () => void;
+  onDismissUpdate: (id: string) => void;
+  onDismissAll: () => void;
+}) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [onClose]);
+
+  return (
+    <div className="activity-pane-modal" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="interaction-pane-header">
+        <div className="interaction-eyebrow"><i className="fa-solid fa-timeline" aria-hidden="true" /> Agent activity</div>
+        <div className="activity-header-actions">
+          {updates.length ? (
+            <button type="button" className="activity-dismiss-all" title="Dismiss all updates from this list" onClick={onDismissAll}>
+              Clear all
+            </button>
+          ) : null}
+          <button type="button" className="interaction-close" title="Close (Esc)" onClick={onClose}>
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      {updates.length ? (
+        <div className="activity-update-list">
+          {[...updates].reverse().map((update) => (
+            <article key={update.id} className={`activity-update level-${update.level ?? 'info'} kind-${update.kind}`}>
+              <div className="activity-update-meta">
+                <span>{formatUpdateTime(update)}</span>
+                <span>{update.kind}</span>
+                <button type="button" className="activity-update-dismiss" title="Dismiss update" onClick={() => onDismissUpdate(update.id)}>
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
+              </div>
+              <h3>{update.title}</h3>
+              <p>{update.body}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="activity-empty">No semantic updates yet. Updates appear here when the agent makes meaningful progress.</div>
+      )}
     </div>
   );
 }
@@ -91,6 +329,15 @@ function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
   const [custom, setCustom] = useState(false);
   const [draft, setDraft] = useState('');
   const choices = request.payload.choices?.length ? request.payload.choices : [{ id: 'custom', label: 'Type response…', custom: true }];
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [onClose]);
+
   return (
     <div className={`interaction-pane-modal${custom ? ' composing' : ''}`} onMouseDown={(event) => event.stopPropagation()}>
       <div className="interaction-pane-header">
@@ -146,7 +393,7 @@ function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
   );
 }
 
-export function TerminalPane({ paneId, active, accentColor, themeName, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState }: TerminalPaneProps) {
+export function TerminalPane({ paneId, active, accentColor, themeName, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState, onActivityState }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -154,12 +401,21 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
   const touchLastYRef = useRef<number | null>(null);
   const touchScrollRemainderRef = useRef(0);
   const touchStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const activityVisibleRef = useRef(false);
+  const seenUpdateIdsRef = useRef(new Set<string>());
+  const dismissedUpdateIdsRef = useRef(new Set<string>());
   const [status, setStatus] = useState<PaneStatus>('connecting');
   const [dropActive, setDropActive] = useState(false);
   const [hasProducer, setHasProducer] = useState(false);
   const [interaction, setInteraction] = useState<InteractionRequest | null>(null);
   const [interactionVisible, setInteractionVisible] = useState(false);
+  const [updates, setUpdates] = useState<SessionUpdate[]>([]);
+  const [activityVisible, setActivityVisible] = useState(false);
+  const [unreadUpdates, setUnreadUpdates] = useState(0);
+  const [scryerPickerVisible, setScryerPickerVisible] = useState(false);
   const [quickInputsVisible, setQuickInputsVisible] = useState(false);
+
+  useEffect(() => { activityVisibleRef.current = activityVisible; }, [activityVisible]);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -170,7 +426,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
     }
 
     const term = new Terminal({
-      cursorBlink: true,
+      cursorBlink: false,
       fontFamily: '"JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace',
       fontSize,
       lineHeight: 1.35,
@@ -205,10 +461,17 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
     socket.addEventListener('message', (event) => {
       const payload = JSON.parse(event.data);
       if (payload.type === 'output') {
-        if (payload.replay) term.clear();
-        term.write(payload.data);
+        if (payload.replay) {
+          term.clear();
+          reportStatus('replaying');
+          term.write(payload.data, () => reportStatus('connected'));
+        } else {
+          term.write(payload.data);
+        }
       }
-      if (payload.type === 'status' && payload.interactionProducer) setHasProducer(true);
+      if (payload.type === 'status') {
+        if (payload.interactionProducer) setHasProducer(true);
+      }
       if (payload.type === 'interaction_producer') setHasProducer(true);
       if (payload.type === 'interaction') {
         setInteraction(payload.request);
@@ -218,7 +481,21 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
         setInteraction(null);
         setInteractionVisible(false);
       }
+      if (payload.type === 'session_updates' && Array.isArray(payload.updates)) {
+        const incoming = (payload.updates as SessionUpdate[]).filter((update) => update?.id && !dismissedUpdateIdsRef.current.has(update.id));
+        const newCount = incoming.filter((update) => !seenUpdateIdsRef.current.has(update.id)).length;
+        for (const update of incoming) seenUpdateIdsRef.current.add(update.id);
+        setUpdates((current) => {
+          const byId = new Map(current.map((update) => [update.id, update]));
+          for (const update of incoming) byId.set(update.id, update);
+          const next = Array.from(byId.values()).sort((a, b) => String(a.receivedAt ?? a.createdAt ?? '').localeCompare(String(b.receivedAt ?? b.createdAt ?? ''))).slice(-100);
+          seenUpdateIdsRef.current = new Set(next.map((update) => update.id));
+          return next;
+        });
+        if (!activityVisibleRef.current && newCount > 0) setUnreadUpdates((count) => count + newCount);
+      }
     });
+
     socket.addEventListener('close', () => {
       reportStatus('closed');
       term.writeln('\r\n\x1b[31m[terminal disconnected]\x1b[0m');
@@ -312,6 +589,8 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       sendInput: (data) => send(data, false),
       getRecentLines,
       openInteraction: () => { if (interaction) setInteractionVisible(true); },
+      openActivity: () => { setActivityVisible(true); setUnreadUpdates(0); },
+      openScryerPicker: () => setScryerPickerVisible(true),
       openQuickInputs: () => setQuickInputsVisible(true),
     });
     return () => onRegisterApi(paneId, null);
@@ -322,6 +601,11 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
   }, [paneId, hasProducer, interaction, onInteractionState]);
 
   useEffect(() => {
+    const latest = updates[updates.length - 1];
+    onActivityState?.(paneId, { count: updates.length, unread: unreadUpdates, latestLevel: latest?.level, latestKind: latest?.kind });
+  }, [paneId, updates, unreadUpdates, onActivityState]);
+
+  useEffect(() => {
     if (active && interaction) setInteractionVisible(true);
   }, [active, interaction]);
 
@@ -330,6 +614,20 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
     if (!interaction || socket?.readyState !== WebSocket.OPEN) return;
     socket.send(JSON.stringify({ type: 'interaction_response', request: interaction, response, paneId }));
     setInteractionVisible(false);
+  }
+
+  function dismissUpdate(id: string) {
+    dismissedUpdateIdsRef.current.add(id);
+    setUpdates((current) => current.filter((update) => update.id !== id));
+    setUnreadUpdates(0);
+  }
+
+  function dismissAllUpdates() {
+    setUpdates((current) => {
+      for (const update of current) dismissedUpdateIdsRef.current.add(update.id);
+      return [];
+    });
+    setUnreadUpdates(0);
   }
 
   function onDragOver(event: React.DragEvent) {
@@ -389,7 +687,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
     touchStartRef.current = null;
     if (!start || start.moved) return;
     event.preventDefault();
-    onOpenCommandInput?.();
+    setQuickInputsVisible(true);
   }
 
   return (
@@ -410,14 +708,38 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       />
       {dropActive ? <div className="drop-overlay" aria-hidden="true">Drop to add file path</div> : null}
       {interaction && interactionVisible ? (
-        <InteractionPaneModal
-          request={interaction}
-          onClose={() => setInteractionVisible(false)}
-          onDismiss={() => respondToInteraction({ kind: 'dismiss' })}
-          onRespond={respondToInteraction}
-        />
+        <>
+          <div className="modal-touch-guard" aria-hidden="true" />
+          <InteractionPaneModal
+            request={interaction}
+            onClose={() => setInteractionVisible(false)}
+            onDismiss={() => respondToInteraction({ kind: 'dismiss' })}
+            onRespond={respondToInteraction}
+          />
+        </>
       ) : null}
-      {quickInputsVisible ? <QuickInputsModal onClose={() => { setQuickInputsVisible(false); termRef.current?.blur(); }} onSend={(data) => { send(data, false); setQuickInputsVisible(false); }} /> : null}
+      {activityVisible ? (
+        <>
+          <div className="modal-touch-guard" aria-hidden="true" />
+          <ActivityPaneModal updates={updates} onClose={() => setActivityVisible(false)} onDismissUpdate={dismissUpdate} onDismissAll={dismissAllUpdates} />
+        </>
+      ) : null}
+      {scryerPickerVisible ? (
+        <>
+          <div className="modal-touch-guard" aria-hidden="true" />
+          <ScryerPickerModal onClose={() => setScryerPickerVisible(false)} onSend={(data) => send(data, false)} />
+        </>
+      ) : null}
+      {quickInputsVisible ? (
+        <>
+          <div className="modal-touch-guard" aria-hidden="true" />
+          <QuickInputsModal
+            onClose={() => setQuickInputsVisible(false)}
+            onSend={(data) => { send(data, false); setQuickInputsVisible(false); }}
+            onOpenCompose={() => { setQuickInputsVisible(false); onOpenCommandInput?.(); }}
+          />
+        </>
+      ) : null}
       <div className="terminal-accessory" aria-label="Terminal shortcuts">
         <button onClick={() => send('\x1b')}>Esc</button>
         <button onClick={() => send('\t')}>Tab</button>

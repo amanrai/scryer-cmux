@@ -2,7 +2,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { statePath } from './config.mjs';
 import { makeId } from './ids.mjs';
 
-const colors = ['#E8B65A', '#5AA6F0', '#6FCB7F', '#4FC9D4', '#B47BE8', '#F0786E', '#8A93A3'];
+const colors = ['#5AA6F0', '#E8B65A', '#6FCB7F', '#4FC9D4', '#B47BE8', '#F0786E', '#8A93A3'];
 
 export function makePane(index) {
   return {

@@ -1,4 +1,4 @@
-export type PaneStatus = 'connecting' | 'connected' | 'closed';
+export type PaneStatus = 'connecting' | 'connected' | 'replaying' | 'closed';
 
 export type PaneModel = {
   id: string;
