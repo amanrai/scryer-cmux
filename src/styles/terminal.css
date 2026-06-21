@@ -1,6 +1,6 @@
 /* ── Terminal stage ─────────────────────────────────────────── */
-.workspace-main { grid-area: main; position: relative; min-width: 0; background: var(--void); }
-.terminal-stage { position: absolute; inset: 0; padding: 10px; min-height: 0; }
+.workspace-main { grid-area: main; position: relative; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: none; background: var(--void); }
+.terminal-stage { position: absolute; inset: 0; padding: 10px; min-height: 0; overflow: hidden; overscroll-behavior: none; }
 .terminal-loading {
   position: absolute;
   inset: 10px;
@@ -24,9 +24,9 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.workspace-surface { position: absolute; inset: 10px; display: none; min-width: 0; min-height: 0; }
+.workspace-surface { position: absolute; inset: 10px; display: none; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: none; }
 .workspace-surface.active { display: block; }
-.pane-grid { height: 100%; min-width: 0; min-height: 0; display: flex; gap: 10px; }
+.pane-grid { height: 100%; min-width: 0; min-height: 0; overflow: hidden; overscroll-behavior: none; display: flex; gap: 10px; }
 .pane-grid.row { flex-direction: row; }
 .pane-grid.column { flex-direction: column; }
 
@@ -108,7 +108,7 @@
 .pane-action i { font-size: 12.5px; }
 .pane-action-divider { width: 1px; height: 16px; margin: 0 3px; background: var(--line-hi); flex: 0 0 auto; }
 
-.terminal-wrap { position: relative; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: var(--void); }
+.terminal-wrap { position: relative; min-height: 0; overflow: hidden; overscroll-behavior: none; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: var(--void); }
 .drop-overlay {
   position: absolute;
   inset: 6px;
@@ -233,6 +233,8 @@
   gap: 8px;
   max-height: min(440px, calc(100vh - 160px));
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .quick-input-item {
   min-height: 54px;
