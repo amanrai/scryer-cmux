@@ -20,6 +20,7 @@ export type TerminalPaneApi = {
   sendInput: (data: string) => void;
   getRecentLines: (count?: number) => string[];
   openInteraction: () => void;
+  openQuickInputs: () => void;
 };
 
 type TerminalPaneProps = {
@@ -33,6 +34,50 @@ type TerminalPaneProps = {
   onOpenCommandInput?: () => void;
   onInteractionState?: (paneId: string, state: { hasProducer: boolean; hasPending: boolean }) => void;
 };
+
+type QuickInput = { label: string; description?: string; data: string; icon: string };
+
+const quickInputs: QuickInput[] = [
+  { label: 'Esc', description: 'Send escape', data: '\x1b', icon: 'fa-door-open' },
+  { label: 'Tab', description: 'Autocomplete / indent', data: '\t', icon: 'fa-arrow-right-to-bracket' },
+  { label: 'Enter', description: 'Submit current line', data: '\r', icon: 'fa-turn-down' },
+  { label: 'Ctrl-C', description: 'Interrupt', data: '\x03', icon: 'fa-ban' },
+  { label: 'Ctrl-D', description: 'EOF / exit', data: '\x04', icon: 'fa-right-from-bracket' },
+  { label: 'Ctrl-L', description: 'Clear screen', data: '\x0c', icon: 'fa-broom' },
+  { label: '↑', description: 'Previous history', data: '\x1b[A', icon: 'fa-arrow-up' },
+  { label: '↓', description: 'Next history', data: '\x1b[B', icon: 'fa-arrow-down' },
+  { label: '/comms-init', description: 'Re-emit interaction producer marker', data: '/comms-init\r', icon: 'fa-satellite-dish' },
+  { label: '/comms-test', description: 'Create test interaction', data: '/comms-test\r', icon: 'fa-vial' },
+  { label: '/comms-status', description: 'Show comms state', data: '/comms-status\r', icon: 'fa-signal' },
+  { label: '/reload', description: 'Reload Pi extensions', data: '/reload\r', icon: 'fa-rotate' },
+  { label: '/scryer', description: 'Show Scryer command list', data: '/scryer\r', icon: 'fa-list' },
+  { label: 'git status', description: 'Run git status', data: 'git status\r', icon: 'fa-code-branch' },
+  { label: 'clear', description: 'Clear terminal', data: 'clear\r', icon: 'fa-eraser' },
+];
+
+function QuickInputsModal({ onClose, onSend }: { onClose: () => void; onSend: (data: string) => void }) {
+  return (
+    <div className="quick-input-modal" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="interaction-pane-header">
+        <div className="interaction-eyebrow"><i className="fa-solid fa-bolt" aria-hidden="true" /> Quick inputs</div>
+        <button type="button" className="interaction-close" title="Close" onClick={onClose}>
+          <i className="fa-solid fa-xmark" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="quick-input-grid">
+        {quickInputs.map((item) => (
+          <button key={item.label} type="button" className="quick-input-item" onClick={() => onSend(item.data)}>
+            <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+            <span>
+              <strong>{item.label}</strong>
+              {item.description ? <small>{item.description}</small> : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
   request: InteractionRequest;
@@ -111,6 +156,7 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
   const [hasProducer, setHasProducer] = useState(false);
   const [interaction, setInteraction] = useState<InteractionRequest | null>(null);
   const [interactionVisible, setInteractionVisible] = useState(false);
+  const [quickInputsVisible, setQuickInputsVisible] = useState(false);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -263,6 +309,7 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
       sendInput: (data) => send(data, false),
       getRecentLines,
       openInteraction: () => { if (interaction) setInteractionVisible(true); },
+      openQuickInputs: () => setQuickInputsVisible(true),
     });
     return () => onRegisterApi(paneId, null);
   }, [paneId, onRegisterApi, interaction]);
@@ -367,6 +414,7 @@ export function TerminalPane({ paneId, active, accentColor, fontSize, focusToken
           onRespond={respondToInteraction}
         />
       ) : null}
+      {quickInputsVisible ? <QuickInputsModal onClose={() => setQuickInputsVisible(false)} onSend={(data) => { send(data); setQuickInputsVisible(false); }} /> : null}
       <div className="terminal-accessory" aria-label="Terminal shortcuts">
         <button onClick={() => send('\x1b')}>Esc</button>
         <button onClick={() => send('\t')}>Tab</button>

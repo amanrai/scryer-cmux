@@ -18,6 +18,7 @@ type TerminalStageProps = {
   onAdjustPaneFontSize: (paneId: string, delta: number) => void;
   onOpenCommandInput: (pane: PaneModel, workspaceId: string) => void;
   onOpenPaneInteraction: (paneId: string) => void;
+  onOpenPaneQuickInputs: (paneId: string) => void;
   onSplitPane: (direction: WorkspaceModel['layout']) => void;
   onClosePane: (paneId: string) => void;
   onPaneStatus: (paneId: string, status: PaneStatus) => void;
@@ -40,6 +41,7 @@ export function TerminalStage({
   onAdjustPaneFontSize,
   onOpenCommandInput,
   onOpenPaneInteraction,
+  onOpenPaneQuickInputs,
   onSplitPane,
   onClosePane,
   onPaneStatus,
@@ -105,6 +107,9 @@ export function TerminalStage({
                           onClick={() => onOpenPaneInteraction(pane.id)}
                         >
                           <i className="fa-solid fa-comments" aria-hidden="true" />
+                        </button>
+                        <button className="pane-action" type="button" title="Quick inputs" aria-label="Quick inputs" onClick={() => onOpenPaneQuickInputs(pane.id)}>
+                          <i className="fa-solid fa-bolt" aria-hidden="true" />
                         </button>
                         <button
                           className="pane-action"

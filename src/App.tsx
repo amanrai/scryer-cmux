@@ -284,6 +284,10 @@ export function App() {
     paneApis.current[paneId]?.openInteraction();
   }
 
+  function openPaneQuickInputs(paneId: string) {
+    paneApis.current[paneId]?.openQuickInputs();
+  }
+
   function updatePaneInteractionState(paneId: string, next: { hasProducer: boolean; hasPending: boolean }) {
     setPaneInteractionState((current) => {
       const existing = current[paneId];
@@ -350,6 +354,7 @@ export function App() {
         onAdjustPaneFontSize={adjustPaneFontSize}
         onOpenCommandInput={openCommandInput}
         onOpenPaneInteraction={openPaneInteraction}
+        onOpenPaneQuickInputs={openPaneQuickInputs}
         onSplitPane={splitPane}
         onClosePane={closePane}
         onPaneStatus={reportPaneStatus}

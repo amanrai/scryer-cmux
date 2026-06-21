@@ -137,7 +137,8 @@
 .xterm .xterm-viewport::-webkit-scrollbar { width: 9px; }
 .xterm .xterm-viewport::-webkit-scrollbar-thumb { background: var(--raised-hi); border-radius: 5px; border: 2px solid var(--void); }
 
-.interaction-pane-modal {
+.interaction-pane-modal,
+.quick-input-modal {
   position: absolute;
   z-index: 8;
   top: 14px;
@@ -222,9 +223,35 @@
 }
 .interaction-custom-input:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .interaction-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.quick-input-modal { width: min(720px, calc(100% - 28px)); }
+.quick-input-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  max-height: min(440px, calc(100vh - 160px));
+  overflow: auto;
+}
+.quick-input-item {
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--raised) 82%, transparent);
+  border: 1px solid var(--line-hi);
+  border-radius: 4px;
+  text-align: left;
+}
+.quick-input-item:hover { color: var(--text); border-color: var(--accent-line); background: color-mix(in srgb, var(--accent) 12%, var(--raised)); }
+.quick-input-item i { color: var(--accent-text); font-size: 13px; text-align: center; }
+.quick-input-item strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.quick-input-item small { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
 @media (max-width: 720px) {
-  .interaction-pane-modal { top: 6px; width: calc(100% - 12px); max-height: calc(100% - 12px); padding: 12px; overflow: auto; }
+  .interaction-pane-modal, .quick-input-modal { top: 6px; width: calc(100% - 12px); max-height: calc(100% - 12px); padding: 12px; overflow: auto; }
   .interaction-pane-modal.composing { top: 4px; }
+  .quick-input-grid { grid-template-columns: 1fr; max-height: none; }
   .interaction-pane-titlebar h3 { font-size: 15px; }
   .interaction-pane-titlebar p { font-size: 12px; }
   .interaction-custom-input { min-height: 110px; max-height: 24vh; }
