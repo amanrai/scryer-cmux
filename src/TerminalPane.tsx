@@ -51,6 +51,7 @@ const quickInputs: QuickInput[] = [
   { label: '/comms-status', description: 'Show comms state', data: '/comms-status\r', icon: 'fa-signal' },
   { label: '/reload', description: 'Reload Pi extensions', data: '/reload\r', icon: 'fa-rotate' },
   { label: '/scryer', description: 'Show Scryer command list', data: '/scryer\r', icon: 'fa-list' },
+  { label: 'Commit & push', description: 'Ask agent to commit and push', data: 'commit and push the current changes\r', icon: 'fa-cloud-arrow-up' },
   { label: 'git status', description: 'Run git status', data: 'git status\r', icon: 'fa-code-branch' },
   { label: 'clear', description: 'Clear terminal', data: 'clear\r', icon: 'fa-eraser' },
 ];
