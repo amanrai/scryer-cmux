@@ -27,6 +27,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 32%, transparent);
   --accent-text: color-mix(in srgb, var(--accent) 88%, white 12%);
+  --machine-name: #E8B65A;
   --focus: color-mix(in srgb, var(--accent) 70%, transparent);
 
   --font-display: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -73,6 +74,7 @@
   --accent-soft: rgba(0, 95, 204, 0.12);
   --accent-line: rgba(0, 95, 204, 0.35);
   --accent-text: #004BAD;
+  --machine-name: #004BAD;
   --focus: rgba(0, 95, 204, 0.50);
 }
 

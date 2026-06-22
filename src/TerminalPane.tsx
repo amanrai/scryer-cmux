@@ -158,8 +158,13 @@ function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (
   const [projects, setProjects] = useState<PmProject[]>([]);
   const [tasks, setTasks] = useState<PmTask[]>([]);
   const [selectedProject, setSelectedProject] = useState<PmProject | null>(null);
-  const [query, setQuery] = useState('');
+  const [selectedTask, setSelectedTask] = useState<PmTask | null>(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set<string>());
+  const [projectQuery, setProjectQuery] = useState('');
+  const [taskQuery, setTaskQuery] = useState('');
   const [loading, setLoading] = useState('projects');
+  const [projectPaneWidth, setProjectPaneWidth] = useState(34);
+  const columnsRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -190,11 +195,11 @@ function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (
 
   function selectProject(project: PmProject) {
     setSelectedProject(project);
-    setQuery('');
+    setSelectedTask(null);
+    setTaskQuery('');
     setTasks([]);
     setError('');
     setLoading('tickets');
-    onSend(`/pp ${project.id}\r`);
     fetch(`${API_BASE}/api/pm/tasks?project_id=${encodeURIComponent(project.id)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
@@ -209,54 +214,135 @@ function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (
   }
 
   function selectTask(task: PmTask) {
-    onSend(`/tp ${task.id}\r`);
+    setSelectedTask(task);
+  }
+
+  function toggleTaskExpanded(taskId: string) {
+    setExpandedTaskIds((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
+
+  function applySelection() {
+    if (!selectedProject) return;
+    onSend(`/pp ${selectedProject.id}\r`);
+    if (selectedTask) onSend(`/tp ${selectedTask.id}\r`);
     onClose();
   }
 
-  const q = query.trim().toLowerCase();
-  const filteredProjects = projects.filter((project) => !q || `${project.name} ${project.slug ?? ''} ${project.remote_repo_url ?? ''} ${project.relative_repo_path ?? ''}`.toLowerCase().includes(q)).slice(0, 80);
-  const filteredTasks = tasks.filter((task) => !q || `${task.title} ${task.status ?? ''} ${compactText(task.description_md, 300)}`.toLowerCase().includes(q)).slice(0, 80);
+  function startResize(event: React.PointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const el = columnsRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const pointerId = event.pointerId;
+    event.currentTarget.setPointerCapture(pointerId);
+    function onPointerMove(moveEvent: PointerEvent) {
+      const next = ((moveEvent.clientX - rect.left) / Math.max(1, rect.width)) * 100;
+      setProjectPaneWidth(Math.min(55, Math.max(22, next)));
+    }
+    function onPointerUp() {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    }
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp, { once: true });
+  }
+
+  const projectQ = projectQuery.trim().toLowerCase();
+  const taskQ = taskQuery.trim().toLowerCase();
+  const filteredProjects = projects.filter((project) => !projectQ || `${project.name} ${project.slug ?? ''} ${project.remote_repo_url ?? ''} ${project.relative_repo_path ?? ''}`.toLowerCase().includes(projectQ)).slice(0, 100);
+  const filteredTasks = tasks.filter((task) => !taskQ || `${task.title} ${task.status ?? ''} ${compactText(task.description_md, 300)}`.toLowerCase().includes(taskQ)).slice(0, 100);
 
   return (
-    <div className="scryer-picker-modal" onMouseDown={(event) => event.stopPropagation()}>
+    <div className="scryer-picker-modal two-pane" onMouseDown={(event) => event.stopPropagation()}>
       <div className="interaction-pane-header">
         <div className="interaction-eyebrow"><i className="fa-solid fa-diagram-project" aria-hidden="true" /> Scryer picker</div>
         <button type="button" className="interaction-close" title="Close (Esc)" onClick={onClose}>
           <i className="fa-solid fa-xmark" aria-hidden="true" />
         </button>
       </div>
-      <div className="scryer-picker-search-row">
-        {selectedProject ? <button type="button" className="ghost-button" onClick={() => { setSelectedProject(null); setQuery(''); }}>Projects</button> : null}
-        <input
-          className="scryer-picker-search"
-          value={query}
-          autoFocus
-          placeholder={selectedProject ? `Search tickets in ${selectedProject.name}…` : 'Search projects…'}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </div>
-      {selectedProject ? <div className="scryer-picker-context">Project selected: <strong>{selectedProject.name}</strong>. Choose a ticket, or close to keep project only.</div> : null}
       {error ? <div className="scryer-picker-error">{error}</div> : null}
-      {loading ? <div className="activity-empty">Loading {loading}…</div> : null}
-      {!selectedProject ? (
-        <div className="scryer-picker-list">
-          {filteredProjects.map((project) => (
-            <button key={project.id} type="button" className="scryer-picker-item" onClick={() => selectProject(project)}>
-              <strong>{project.name}</strong>
-              <small>{[project.slug, project.relative_repo_path, compactText(project.description_md)].filter(Boolean).join(' · ')}</small>
-            </button>
-          ))}
+      <div
+        ref={columnsRef}
+        className="scryer-picker-columns"
+        style={{ gridTemplateColumns: `minmax(180px, ${projectPaneWidth}fr) 10px minmax(280px, ${100 - projectPaneWidth}fr)` }}
+      >
+        <section className="scryer-picker-column projects" aria-label="Scryer projects">
+          <div className="scryer-picker-column-head">
+            <h3>Projects</h3>
+            <input
+              className="scryer-picker-search"
+              value={projectQuery}
+              autoFocus
+              placeholder="Search projects…"
+              onChange={(event) => setProjectQuery(event.target.value)}
+            />
+          </div>
+          <div className="scryer-picker-list">
+            {loading === 'projects' ? <div className="activity-empty">Loading projects…</div> : null}
+            {filteredProjects.map((project) => (
+              <button key={project.id} type="button" className={`scryer-picker-item project${selectedProject?.id === project.id ? ' selected' : ''}`} onClick={() => selectProject(project)}>
+                <strong>{project.name}</strong>
+                <small>{[project.slug, project.relative_repo_path].filter(Boolean).join(' · ')}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+        <button
+          type="button"
+          className="scryer-picker-resizer"
+          aria-label="Resize Scryer picker panes"
+          title="Drag to resize panes"
+          onPointerDown={startResize}
+        />
+        <section className="scryer-picker-column tickets" aria-label="Scryer tickets">
+          <div className="scryer-picker-column-head">
+            <h3>{selectedProject ? selectedProject.name : 'Tickets'}</h3>
+            <input
+              className="scryer-picker-search"
+              value={taskQuery}
+              disabled={!selectedProject}
+              placeholder={selectedProject ? 'Search tickets…' : 'Select a project first…'}
+              onChange={(event) => setTaskQuery(event.target.value)}
+            />
+          </div>
+          {selectedProject ? <div className="scryer-picker-context">Project selected: <strong>{selectedProject.name}</strong>. Choose a ticket, or close to keep project only.</div> : null}
+          <div className="scryer-picker-list">
+            {!selectedProject ? <div className="activity-empty">Select a project to load tickets.</div> : null}
+            {loading === 'tickets' ? <div className="activity-empty">Loading tickets…</div> : null}
+            {selectedProject && loading !== 'tickets' && !filteredTasks.length ? <div className="activity-empty">No tickets found.</div> : null}
+            {filteredTasks.map((task) => {
+              const expanded = expandedTaskIds.has(task.id);
+              const description = compactText(task.description_md, expanded ? 2000 : 180);
+              return (
+                <article key={task.id} className={`scryer-picker-item ticket${selectedTask?.id === task.id ? ' selected' : ''}${expanded ? ' expanded' : ''}`}>
+                  <button type="button" className="scryer-picker-ticket-main" onClick={() => selectTask(task)}>
+                    <strong>{task.title}</strong>
+                    <small>{taskDescription({ ...task, description_md: expanded ? '' : task.description_md })}</small>
+                  </button>
+                  {description ? <p className="scryer-picker-ticket-description">{description}</p> : null}
+                  {task.description_md ? (
+                    <button type="button" className="scryer-picker-expand" onClick={() => toggleTaskExpanded(task.id)}>
+                      {expanded ? 'Collapse' : 'Expand'}
+                    </button>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+      <div className="scryer-picker-actions">
+        <div className="scryer-picker-selection">
+          {selectedProject ? <span>Project: <strong>{selectedProject.name}</strong></span> : <span>Select a project.</span>}
+          {selectedTask ? <span>Ticket: <strong>{selectedTask.title}</strong></span> : null}
         </div>
-      ) : (
-        <div className="scryer-picker-list">
-          {filteredTasks.map((task) => (
-            <button key={task.id} type="button" className="scryer-picker-item" onClick={() => selectTask(task)}>
-              <strong>{task.title}</strong>
-              <small>{taskDescription(task)}</small>
-            </button>
-          ))}
-        </div>
-      )}
+        <button type="button" className="create-button" disabled={!selectedProject} onClick={applySelection}>Set</button>
+      </div>
     </div>
   );
 }

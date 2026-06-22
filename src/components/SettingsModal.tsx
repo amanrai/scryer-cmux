@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { machineIconOptions, type MachineIconId } from '../machineIcons';
 
-type SettingsPage = 'machine';
+type SettingsPage = 'machine' | 'buttons';
+
+type ButtonSettings = { fontSize: boolean; interaction: boolean; agentUpdates: boolean; scryer: boolean; quickInputs: boolean };
 
 type SettingsModalProps = {
   hostName: string;
@@ -9,10 +11,14 @@ type SettingsModalProps = {
   selectedMachineIcons: MachineIconId[];
   onSetMachineIcons: (icons: MachineIconId[]) => void;
   onSetMachineName: (name: string) => void;
+  machineNameColor?: string;
+  onSetMachineNameColor: (color: string) => void;
+  buttonSettings: ButtonSettings;
+  onSetButtonSettings: (settings: ButtonSettings) => void;
   onClose: () => void;
 };
 
-export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons, onSetMachineIcons, onSetMachineName, onClose }: SettingsModalProps) {
+export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons, onSetMachineIcons, onSetMachineName, machineNameColor, onSetMachineNameColor, buttonSettings, onSetButtonSettings, onClose }: SettingsModalProps) {
   const [page, setPage] = useState<SettingsPage>('machine');
   const groups = useMemo(() => ['OS', 'Machine'].map((group) => ({
     group,
@@ -22,6 +28,10 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
   function toggleIcon(id: MachineIconId) {
     if (selectedMachineIcons.includes(id)) onSetMachineIcons(selectedMachineIcons.filter((icon) => icon !== id));
     else onSetMachineIcons([...selectedMachineIcons, id]);
+  }
+
+  function toggleButton(key: keyof ButtonSettings) {
+    onSetButtonSettings({ ...buttonSettings, [key]: !buttonSettings[key] });
   }
 
   useEffect(() => {
@@ -57,8 +67,12 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
               <i className="fa-solid fa-computer" aria-hidden="true" />
               <span>Machine</span>
             </button>
+            <button type="button" className={page === 'buttons' ? 'active' : ''} onClick={() => setPage('buttons')}>
+              <i className="fa-solid fa-toggle-on" aria-hidden="true" />
+              <span>Buttons</span>
+            </button>
           </nav>
-          <div className="settings-page">
+          {page === 'machine' ? <div className="settings-page">
             <div className="settings-page-heading">
               <h3>Machine customization</h3>
               <p>Customize <strong>{defaultHostName}</strong>. This is local to this browser.</p>
@@ -72,14 +86,17 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
                   value={hostName}
                   onChange={(event) => onSetMachineName(event.target.value)}
                 />
-                <button type="button" className="ghost-button" disabled={hostName === defaultHostName} onClick={() => onSetMachineName(defaultHostName)}>Use default</button>
+                <label className="machine-name-color" title="Machine name color">
+                  <span className="sr-only">Machine name color</span>
+                  <input type="color" value={machineNameColor ?? '#e8b65a'} onChange={(event) => onSetMachineNameColor(event.target.value)} />
+                </label>
               </div>
             </div>
             <div className="machine-preview" aria-label="Machine preview">
               {selectedMachineIcons.map((icon) => (
                 <i key={icon} className={machineIconOptions.find((option) => option.id === icon)?.icon} aria-hidden="true" />
               ))}
-              <span>{hostName.trim() || defaultHostName}</span>
+              <span style={machineNameColor ? { color: machineNameColor } : undefined}>{hostName.trim() || defaultHostName}</span>
             </div>
             {groups.map(({ group, options }) => (
               <section key={group} className="machine-icon-group">
@@ -98,7 +115,27 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
               </section>
             ))}
             <button type="button" className="ghost-button settings-clear" disabled={!selectedMachineIcons.length} onClick={() => onSetMachineIcons([])}>Clear icons</button>
-          </div>
+          </div> : null}
+          {page === 'buttons' ? <div className="settings-page">
+            <div className="settings-page-heading">
+              <h3>Buttons</h3>
+              <p>Choose which active-pane buttons appear in the hostbar.</p>
+            </div>
+            <div className="settings-checkbox-list">
+              {[
+                ['fontSize', 'Font Size'],
+                ['interaction', 'Interaction'],
+                ['agentUpdates', 'Agent Updates'],
+                ['scryer', 'Scryer'],
+                ['quickInputs', 'Quick Inputs'],
+              ].map(([key, label]) => (
+                <label key={key} className="settings-checkbox-row">
+                  <input type="checkbox" checked={buttonSettings[key as keyof ButtonSettings]} onChange={() => toggleButton(key as keyof ButtonSettings)} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div> : null}
         </div>
       </section>
     </div>

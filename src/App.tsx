@@ -47,10 +47,43 @@ function loadMachineIcons() {
   }
 }
 
+type HostButtonSettings = {
+  fontSize: boolean;
+  interaction: boolean;
+  agentUpdates: boolean;
+  scryer: boolean;
+  quickInputs: boolean;
+};
+
+const defaultHostButtonSettings: HostButtonSettings = {
+  fontSize: true,
+  interaction: true,
+  agentUpdates: true,
+  scryer: true,
+  quickInputs: false,
+};
+
 function loadMachineNames() {
   try {
     const raw = JSON.parse(localStorage.getItem('smux-machine-names') ?? '{}') as Record<string, unknown>;
     return Object.fromEntries(Object.entries(raw).filter(([, name]) => typeof name === 'string').map(([host, name]) => [host, String(name).trim()]).filter(([, name]) => name)) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function loadHostButtonSettings(): HostButtonSettings {
+  try {
+    return { ...defaultHostButtonSettings, ...JSON.parse(localStorage.getItem('smux-host-buttons') ?? '{}') };
+  } catch {
+    return defaultHostButtonSettings;
+  }
+}
+
+function loadMachineNameColors() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('smux-machine-name-colors') ?? '{}') as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(raw).filter(([, color]) => typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color))) as Record<string, string>;
   } catch {
     return {};
   }
@@ -74,6 +107,8 @@ export function App() {
   const [interactionsEnabled, setInteractionsEnabled] = useState(loadInteractionsEnabled);
   const [machineIconsByHost, setMachineIconsByHost] = useState<Record<string, MachineIconId[]>>(loadMachineIcons);
   const [machineNamesByHost, setMachineNamesByHost] = useState<Record<string, string>>(loadMachineNames);
+  const [machineNameColorsByHost, setMachineNameColorsByHost] = useState<Record<string, string>>(loadMachineNameColors);
+  const [hostButtonSettings, setHostButtonSettings] = useState<HostButtonSettings>(loadHostButtonSettings);
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
   const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
@@ -90,6 +125,7 @@ export function App() {
   const selectedMachineIcons = machineIconsByHost[hostName] ?? [];
   const machineNameDraft = machineNamesByHost[hostName] ?? hostName;
   const displayHostName = machineNameDraft.trim() || hostName;
+  const machineNameColor = machineNameColorsByHost[hostName];
 
   useEffect(() => {
     localStorage.setItem('smux-nav-collapsed', String(navCollapsed));
@@ -110,6 +146,14 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('smux-machine-names', JSON.stringify(machineNamesByHost));
   }, [machineNamesByHost]);
+
+  useEffect(() => {
+    localStorage.setItem('smux-host-buttons', JSON.stringify(hostButtonSettings));
+  }, [hostButtonSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('smux-machine-name-colors', JSON.stringify(machineNameColorsByHost));
+  }, [machineNameColorsByHost]);
 
   useEffect(() => {
     localStorage.setItem('smux-pane-fontsize', JSON.stringify(paneFontSize));
@@ -443,11 +487,13 @@ export function App() {
       <HostBar
         hostName={displayHostName}
         defaultHostName={hostName}
+        machineNameColor={machineNameColor}
         stateStatus={stateStatus}
         interactionsEnabled={interactionsEnabled}
         machineIcons={selectedMachineIcons.map(machineIconClass)}
         activePaneInteractionState={activePaneInteractionState}
         activePaneActivityState={activePaneActivityState}
+        buttonSettings={hostButtonSettings}
         onToggleInteractions={() => setInteractionsEnabled((value) => !value)}
         onAdjustActivePaneFontSize={(delta) => adjustPaneFontSize(activePane.id, delta)}
         onOpenActivePaneInteraction={() => openPaneInteraction(activePane.id)}
@@ -516,6 +562,10 @@ export function App() {
           selectedMachineIcons={selectedMachineIcons}
           onSetMachineIcons={(icons) => setMachineIconsByHost((current) => ({ ...current, [hostName]: icons }))}
           onSetMachineName={(name) => setMachineNamesByHost((current) => ({ ...current, [hostName]: name }))}
+          machineNameColor={machineNameColor}
+          onSetMachineNameColor={(color) => setMachineNameColorsByHost((current) => ({ ...current, [hostName]: color }))}
+          buttonSettings={hostButtonSettings}
+          onSetButtonSettings={setHostButtonSettings}
           onClose={() => setSettingsVisible(false)}
         />
       ) : null}

@@ -4,8 +4,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 76%, var(--void));
+  border-right: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
 }
 .workspace-sidebar * { touch-action: none; }
 .workspace-list { touch-action: pan-y; overscroll-behavior: none; }
@@ -41,10 +41,10 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 4px 8px;
+  padding: 4px 6px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .workspace-tab {
@@ -53,8 +53,8 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
-  padding: 9px 6px 9px 18px;
-  min-height: 44px;
+  padding: 7px 5px 7px 16px;
+  min-height: 38px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   text-align: left;
@@ -71,16 +71,16 @@
   width: 3px;
   border-radius: 2px;
   background: var(--chip);
-  opacity: 0.45;
+  opacity: 0.32;
   transition: opacity 0.15s ease, box-shadow 0.15s ease;
 }
-.workspace-tab:hover { background: var(--raised); }
+.workspace-tab:hover { background: color-mix(in srgb, var(--raised) 65%, transparent); }
 .workspace-tab:hover::before { opacity: 0.85; }
 .workspace-tab.active {
-  background: color-mix(in srgb, var(--chip) 13%, transparent);
-  border-color: color-mix(in srgb, var(--chip) 30%, transparent);
+  background: color-mix(in srgb, var(--chip) 9%, transparent);
+  border-color: color-mix(in srgb, var(--chip) 22%, transparent);
 }
-.workspace-tab.active::before { opacity: 1; box-shadow: 0 0 9px color-mix(in srgb, var(--chip) 65%, transparent); }
+.workspace-tab.active::before { opacity: 0.9; box-shadow: 0 0 7px color-mix(in srgb, var(--chip) 45%, transparent); }
 .workspace-tab.dragging { opacity: 0.45; }
 
 .tab-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -94,11 +94,13 @@
 }
 .workspace-tab.active .tab-title { color: var(--text); }
 .tab-meta {
+  display: none;
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--muted);
   white-space: nowrap;
 }
+.workspace-tab.active .tab-meta { display: block; }
 
 .workspace-close {
   width: 22px;
@@ -138,8 +140,8 @@
 .cmux-shell.nav-collapsed .sidebar-title { display: none; }
 .cmux-shell.nav-collapsed .workspace-list { padding: 6px; align-items: center; }
 .cmux-shell.nav-collapsed .workspace-tab {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 38px;
   padding: 0;
   grid-template-columns: 1fr;
   place-items: center;
@@ -152,8 +154,8 @@
 .workspace-tab .tab-glyph {
   display: none;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 6px;
   font-family: var(--font-mono);
   font-size: 12px;

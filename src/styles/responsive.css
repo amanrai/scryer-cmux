@@ -9,8 +9,11 @@
   .pane-grid { display: block; }
   .pane-grid .pane { display: none; height: 100%; }
   .pane-grid .pane.active { display: grid; }
-  .terminal-accessory { display: flex; }
   .palette { top: 8vh; max-height: 80vh; }
+}
+
+@media (pointer: coarse) {
+  .terminal-accessory { display: flex; }
 }
 
 @media (prefers-reduced-motion: reduce) {
