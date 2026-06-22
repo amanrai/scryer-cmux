@@ -26,7 +26,8 @@
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
-.host-identity { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.host-identity { display: flex; align-items: center; gap: 9px; min-width: 0; border-radius: var(--radius-sm); padding: 4px 6px; margin-left: -6px; }
+.host-identity:hover { background: var(--raised-hi); }
 .host-name {
   font-size: 16px;
   font-weight: 600;
@@ -34,18 +35,11 @@
   color: var(--text);
   white-space: nowrap;
 }
-.host-name b { color: var(--accent-text); font-weight: 600; }
-.host-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: 0 0 auto;
-  background: var(--faint);
-  box-shadow: 0 0 0 0 transparent;
-}
-.host-status-dot.synced { background: var(--ok); box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 70%, transparent); }
-.host-status-dot.loading { background: var(--warn); }
-.host-status-dot.offline { background: var(--err); }
+.host-name b { color: var(--accent); font-weight: 600; }
+.host-machine-icon { color: var(--muted); font-size: 14px; }
+.host-machine-icon.synced { color: var(--ok); }
+.host-machine-icon.loading,
+.host-machine-icon.offline { color: var(--faint); }
 
 .host-divider { width: 1px; height: 22px; background: var(--line-hi); flex: 0 0 auto; }
 
@@ -63,6 +57,41 @@
 .metric.active-pane .metric-value { color: var(--accent-text); }
 
 .host-spacer { margin-left: auto; }
+.host-actions { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
+.host-action {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.host-action:hover { color: var(--text); background: var(--raised-hi); }
+.host-action.interaction.listening { color: var(--accent); }
+.host-action.interaction.pending { color: var(--void); background: var(--accent); box-shadow: 0 0 14px var(--accent-soft); }
+.host-action.activity.unread { color: var(--accent-text); }
+.host-action.activity.level-warning { color: var(--warn); }
+.host-action.activity.level-error { color: var(--err); }
+.host-action.activity.level-success { color: var(--ok); }
+.host-action-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--line-hi); flex: 0 0 auto; }
+.host-action-badge {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  color: var(--void);
+  background: var(--accent);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
 .palette-trigger {
   display: inline-flex;
   align-items: center;

@@ -6,6 +6,7 @@ import { ColorPicker } from './components/ColorPicker';
 import { CommandInputModal } from './components/CommandInputModal';
 import { HostBar } from './components/HostBar';
 import { RenameModal } from './components/RenameModal';
+import { SettingsModal } from './components/SettingsModal';
 import { TerminalStage } from './components/TerminalStage';
 import { WorkspaceSidebar } from './components/WorkspaceSidebar';
 import { WorkspaceContextMenu } from './components/WorkspaceContextMenu';
@@ -14,6 +15,7 @@ import { useServerStateSync } from './hooks/useServerStateSync';
 import type { TerminalPaneApi } from './TerminalPane';
 import type { ColorPickerState, PaneModel, PaneStatus, RenameTarget, WorkspaceMenuState, WorkspaceModel } from './types';
 import type { SmuxThemeName } from './terminal/theme';
+import { machineIconClass, sanitizeMachineIconIds, type MachineIconId } from './machineIcons';
 import { makePane, makeWorkspace, makeId } from './workspaceModel';
 
 function cssVars(vars: Record<string, string>) {
@@ -36,6 +38,24 @@ function loadInteractionsEnabled() {
   return localStorage.getItem('smux-interactions-enabled') !== 'false';
 }
 
+function loadMachineIcons() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('smux-machine-icons') ?? '{}') as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(raw).map(([host, icons]) => [host, sanitizeMachineIconIds(icons)])) as Record<string, MachineIconId[]>;
+  } catch {
+    return {};
+  }
+}
+
+function loadMachineNames() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('smux-machine-names') ?? '{}') as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(raw).filter(([, name]) => typeof name === 'string').map(([host, name]) => [host, String(name).trim()]).filter(([, name]) => name)) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
 export function App() {
   const initialWorkspace = useMemo(() => makeWorkspace(1), []);
   const [workspaces, setWorkspaces] = useState<WorkspaceModel[]>(() => [initialWorkspace]);
@@ -52,16 +72,24 @@ export function App() {
   const [paneActivityState, setPaneActivityState] = useState<Record<string, { count: number; unread: number; latestLevel?: string; latestKind?: string }>>({});
   const [themeName, setThemeName] = useState<SmuxThemeName>(loadThemeName);
   const [interactionsEnabled, setInteractionsEnabled] = useState(loadInteractionsEnabled);
+  const [machineIconsByHost, setMachineIconsByHost] = useState<Record<string, MachineIconId[]>>(loadMachineIcons);
+  const [machineNamesByHost, setMachineNamesByHost] = useState<Record<string, string>>(loadMachineNames);
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
   const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
   const [commandInput, setCommandInput] = useState<{ paneId: string; paneTitle: string; recentLines: string[] } | null>(null);
+  const [settingsVisible, setSettingsVisible] = useState(false);
   const paneApis = useRef<Record<string, TerminalPaneApi>>({});
   const hasLoadedServerState = useRef(false);
 
   const stateReady = stateStatus !== 'loading';
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
-  const activePane = activeWorkspace.panes.find((pane) => pane.id === activeWorkspace.activePaneId) ?? activeWorkspace.panes[0];
+  const activePane = activeWorkspace.panes[0];
+  const activePaneInteractionState = paneInteractionState[activePane.id] ?? { hasProducer: false, hasPending: false };
+  const activePaneActivityState = paneActivityState[activePane.id] ?? { count: 0, unread: 0 };
+  const selectedMachineIcons = machineIconsByHost[hostName] ?? [];
+  const machineNameDraft = machineNamesByHost[hostName] ?? hostName;
+  const displayHostName = machineNameDraft.trim() || hostName;
 
   useEffect(() => {
     localStorage.setItem('smux-nav-collapsed', String(navCollapsed));
@@ -74,6 +102,14 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('smux-interactions-enabled', String(interactionsEnabled));
   }, [interactionsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('smux-machine-icons', JSON.stringify(machineIconsByHost));
+  }, [machineIconsByHost]);
+
+  useEffect(() => {
+    localStorage.setItem('smux-machine-names', JSON.stringify(machineNamesByHost));
+  }, [machineNamesByHost]);
 
   useEffect(() => {
     localStorage.setItem('smux-pane-fontsize', JSON.stringify(paneFontSize));
@@ -130,17 +166,6 @@ export function App() {
     setHostName,
     setStateStatus,
   });
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 't') {
-        event.preventDefault();
-        splitPane('row');
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeWorkspaceId]);
 
   function updateWorkspace(workspaceId: string, updater: (workspace: WorkspaceModel) => WorkspaceModel) {
     setWorkspaces((current) => current.map((workspace) => (workspace.id === workspaceId ? updater(workspace) : workspace)));
@@ -390,12 +415,18 @@ export function App() {
     duplicateWorkspace,
     moveWorkspace,
     closeWorkspace,
-    splitPane,
     openRenamePane,
-    closePane,
   });
 
   const commandActions = useMemo(() => [
+    { id: 'app-heading', separator: true, icon: '', label: 'App' },
+    {
+      id: 'settings',
+      icon: 'fa-solid fa-gear',
+      label: 'Settings',
+      hint: 'open',
+      onSelect: () => setSettingsVisible(true),
+    },
     { id: 'appearance-heading', separator: true, icon: '', label: 'Appearance' },
     {
       id: 'toggle-theme',
@@ -408,12 +439,21 @@ export function App() {
   ], [actions, themeName]);
 
   return (
-    <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': themeName === 'sunlight' ? '#005FCC' : activeWorkspace.color })}>
+    <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': activeWorkspace.color })}>
       <HostBar
-        hostName={hostName}
+        hostName={displayHostName}
+        defaultHostName={hostName}
         stateStatus={stateStatus}
         interactionsEnabled={interactionsEnabled}
+        machineIcons={selectedMachineIcons.map(machineIconClass)}
+        activePaneInteractionState={activePaneInteractionState}
+        activePaneActivityState={activePaneActivityState}
         onToggleInteractions={() => setInteractionsEnabled((value) => !value)}
+        onAdjustActivePaneFontSize={(delta) => adjustPaneFontSize(activePane.id, delta)}
+        onOpenActivePaneInteraction={() => openPaneInteraction(activePane.id)}
+        onOpenActivePaneActivity={() => openPaneActivity(activePane.id)}
+        onOpenActivePaneScryerPicker={() => openPaneScryerPicker(activePane.id)}
+        onOpenActivePaneQuickInputs={() => openPaneQuickInputs(activePane.id)}
       />
       <WorkspaceSidebar
         workspaces={workspaces}
@@ -438,24 +478,13 @@ export function App() {
         hostName={hostName}
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
-        paneStatus={paneStatus}
         paneFontSize={paneFontSize}
-        paneInteractionState={paneInteractionState}
-        paneActivityState={paneActivityState}
         themeName={themeName}
         terminalFocusToken={terminalFocusToken}
         interactionsEnabled={interactionsEnabled}
         onActivateWorkspace={activateWorkspace}
         onSetActivePane={setActivePane}
-        onRenamePane={openRenamePane}
-        onAdjustPaneFontSize={adjustPaneFontSize}
         onOpenCommandInput={openCommandInput}
-        onOpenPaneInteraction={openPaneInteraction}
-        onOpenPaneActivity={openPaneActivity}
-        onOpenPaneScryerPicker={openPaneScryerPicker}
-        onOpenPaneQuickInputs={openPaneQuickInputs}
-        onSplitPane={splitPane}
-        onClosePane={closePane}
         onPaneStatus={reportPaneStatus}
         onPaneInteractionState={updatePaneInteractionState}
         onPaneActivityState={updatePaneActivityState}
@@ -480,6 +509,16 @@ export function App() {
         />
       ) : null}
       {renameTarget ? <RenameModal target={renameTarget} draft={renameDraft} onDraftChange={setRenameDraft} onSubmit={submitRename} onCancel={() => setRenameTarget(null)} /> : null}
+      {settingsVisible ? (
+        <SettingsModal
+          hostName={machineNameDraft}
+          defaultHostName={hostName}
+          selectedMachineIcons={selectedMachineIcons}
+          onSetMachineIcons={(icons) => setMachineIconsByHost((current) => ({ ...current, [hostName]: icons }))}
+          onSetMachineName={(name) => setMachineNamesByHost((current) => ({ ...current, [hostName]: name }))}
+          onClose={() => setSettingsVisible(false)}
+        />
+      ) : null}
       {commandInput ? (
         <CommandInputModal
           paneTitle={commandInput.paneTitle}

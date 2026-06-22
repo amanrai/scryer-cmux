@@ -13,9 +13,7 @@ type UseCommandActionsArgs = {
   duplicateWorkspace: () => void;
   moveWorkspace: (workspaceId: string, direction: -1 | 1) => void;
   closeWorkspace: () => void;
-  splitPane: (direction: WorkspaceModel['layout']) => void;
   openRenamePane: (pane: PaneModel) => void;
-  closePane: () => void;
 };
 
 export function useCommandActions({
@@ -29,9 +27,7 @@ export function useCommandActions({
   duplicateWorkspace,
   moveWorkspace,
   closeWorkspace,
-  splitPane,
   openRenamePane,
-  closePane,
 }: UseCommandActionsArgs) {
   return useMemo<CommandAction[]>(() => {
     const workspaceActions = workspaces.map((workspace) => ({
@@ -53,11 +49,8 @@ export function useCommandActions({
       { id: 'close-workspace', icon: 'fa-solid fa-xmark', label: 'Close workspace', hint: activeWorkspace.name, onSelect: closeWorkspace },
       { id: 'switch-workspace-heading', separator: true, icon: '', label: 'Switch workspace' },
       ...workspaceActions,
-      { id: 'pane-heading', separator: true, icon: '', label: 'Panes' },
-      { id: 'split-right', icon: 'fa-solid fa-grip-lines-vertical', label: 'New terminal right', hint: '⌘T · side by side', onSelect: () => splitPane('row') },
-      { id: 'split-down', icon: 'fa-solid fa-grip-lines', label: 'New terminal down', hint: 'stacked', onSelect: () => splitPane('column') },
+      { id: 'pane-heading', separator: true, icon: '', label: 'Pane' },
       { id: 'rename-pane', icon: 'fa-solid fa-pen', label: 'Rename terminal', hint: activePane?.title, onSelect: () => openRenamePane(activePane) },
-      ...(activeWorkspace.panes.length > 1 ? [{ id: 'close-pane', icon: 'fa-solid fa-xmark', label: 'Close active pane', hint: activePane?.title, onSelect: closePane }] : []),
     ];
-  }, [activePane, activeWorkspace, activeWorkspaceId, activateWorkspace, closePane, closeWorkspace, createWorkspace, duplicateWorkspace, moveWorkspace, openRenamePane, openRenameWorkspace, splitPane, workspaces]);
+  }, [activePane, activeWorkspace, activeWorkspaceId, activateWorkspace, closeWorkspace, createWorkspace, duplicateWorkspace, moveWorkspace, openRenamePane, openRenameWorkspace, workspaces]);
 }

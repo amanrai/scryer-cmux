@@ -35,15 +35,15 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--accent-line);
   border-radius: var(--radius);
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .pane.active {
-  border-color: var(--accent-line);
+  border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-soft), 0 12px 40px rgba(0, 0, 0, 0.42);
 }
 
