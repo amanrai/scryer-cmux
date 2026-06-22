@@ -45,6 +45,7 @@ type TerminalPaneProps = {
   themeName: SmuxThemeName;
   fontSize: number;
   focusToken: number;
+  interactionsEnabled: boolean;
   onStatus?: (paneId: string, status: PaneStatus) => void;
   onRegisterApi?: (paneId: string, api: TerminalPaneApi | null) => void;
   onOpenCommandInput?: () => void;
@@ -314,7 +315,7 @@ function ActivityPaneModal({ updates, onClose, onDismissUpdate, onDismissAll }: 
           ))}
         </div>
       ) : (
-        <div className="activity-empty">No semantic updates yet. Updates appear here when the agent makes meaningful progress.</div>
+        <div className="activity-empty">No updates in this panel yet.</div>
       )}
     </div>
   );
@@ -393,7 +394,7 @@ function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
   );
 }
 
-export function TerminalPane({ paneId, active, accentColor, themeName, fontSize, focusToken, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState, onActivityState }: TerminalPaneProps) {
+export function TerminalPane({ paneId, active, accentColor, themeName, fontSize, focusToken, interactionsEnabled, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState, onActivityState }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -402,6 +403,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
   const touchScrollRemainderRef = useRef(0);
   const touchStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const activityVisibleRef = useRef(false);
+  const interactionsEnabledRef = useRef(interactionsEnabled);
   const seenUpdateIdsRef = useRef(new Set<string>());
   const dismissedUpdateIdsRef = useRef(new Set<string>());
   const [status, setStatus] = useState<PaneStatus>('connecting');
@@ -416,6 +418,11 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
   const [quickInputsVisible, setQuickInputsVisible] = useState(false);
 
   useEffect(() => { activityVisibleRef.current = activityVisible; }, [activityVisible]);
+  useEffect(() => { interactionsEnabledRef.current = interactionsEnabled; }, [interactionsEnabled]);
+
+  useEffect(() => {
+    if (!interactionsEnabled) setInteractionVisible(false);
+  }, [interactionsEnabled]);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -474,8 +481,10 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       }
       if (payload.type === 'interaction_producer') setHasProducer(true);
       if (payload.type === 'interaction') {
-        setInteraction(payload.request);
-        setInteractionVisible(true);
+        const request = payload.request as InteractionRequest | null;
+        if (!request?.id) return;
+        setInteraction(request);
+        setInteractionVisible(interactionsEnabledRef.current);
       }
       if (payload.type === 'interaction_clear') {
         setInteraction(null);
@@ -594,7 +603,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       openQuickInputs: () => setQuickInputsVisible(true),
     });
     return () => onRegisterApi(paneId, null);
-  }, [paneId, onRegisterApi, interaction]);
+  }, [paneId, onRegisterApi, interaction, interactionsEnabled]);
 
   useEffect(() => {
     onInteractionState?.(paneId, { hasProducer, hasPending: !!interaction });
@@ -606,7 +615,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
   }, [paneId, updates, unreadUpdates, onActivityState]);
 
   useEffect(() => {
-    if (active && interaction) setInteractionVisible(true);
+    if (interactionsEnabledRef.current && active && interaction) setInteractionVisible(true);
   }, [active, interaction]);
 
   function respondToInteraction(response: Record<string, unknown>) {

@@ -32,6 +32,10 @@ function loadPaneFontSizes() {
   }
 }
 
+function loadInteractionsEnabled() {
+  return localStorage.getItem('smux-interactions-enabled') !== 'false';
+}
+
 export function App() {
   const initialWorkspace = useMemo(() => makeWorkspace(1), []);
   const [workspaces, setWorkspaces] = useState<WorkspaceModel[]>(() => [initialWorkspace]);
@@ -47,6 +51,7 @@ export function App() {
   const [paneInteractionState, setPaneInteractionState] = useState<Record<string, { hasProducer: boolean; hasPending: boolean }>>({});
   const [paneActivityState, setPaneActivityState] = useState<Record<string, { count: number; unread: number; latestLevel?: string; latestKind?: string }>>({});
   const [themeName, setThemeName] = useState<SmuxThemeName>(loadThemeName);
+  const [interactionsEnabled, setInteractionsEnabled] = useState(loadInteractionsEnabled);
   const [paneFontSize, setPaneFontSize] = useState<Record<string, number>>(loadPaneFontSizes);
   const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
   const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
@@ -65,6 +70,10 @@ export function App() {
   useEffect(() => {
     localStorage.setItem('smux-theme', themeName);
   }, [themeName]);
+
+  useEffect(() => {
+    localStorage.setItem('smux-interactions-enabled', String(interactionsEnabled));
+  }, [interactionsEnabled]);
 
   useEffect(() => {
     localStorage.setItem('smux-pane-fontsize', JSON.stringify(paneFontSize));
@@ -400,7 +409,12 @@ export function App() {
 
   return (
     <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': themeName === 'sunlight' ? '#005FCC' : activeWorkspace.color })}>
-      <HostBar hostName={hostName} stateStatus={stateStatus} />
+      <HostBar
+        hostName={hostName}
+        stateStatus={stateStatus}
+        interactionsEnabled={interactionsEnabled}
+        onToggleInteractions={() => setInteractionsEnabled((value) => !value)}
+      />
       <WorkspaceSidebar
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -430,6 +444,7 @@ export function App() {
         paneActivityState={paneActivityState}
         themeName={themeName}
         terminalFocusToken={terminalFocusToken}
+        interactionsEnabled={interactionsEnabled}
         onActivateWorkspace={activateWorkspace}
         onSetActivePane={setActivePane}
         onRenamePane={openRenamePane}

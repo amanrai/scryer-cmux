@@ -1,9 +1,11 @@
 type HostBarProps = {
   hostName: string;
   stateStatus: 'loading' | 'synced' | 'offline';
+  interactionsEnabled: boolean;
+  onToggleInteractions: () => void;
 };
 
-export function HostBar({ hostName, stateStatus }: HostBarProps) {
+export function HostBar({ hostName, stateStatus, interactionsEnabled, onToggleInteractions }: HostBarProps) {
   return (
     <header className="host-bar">
       <div className="host-identity">
@@ -12,13 +14,22 @@ export function HostBar({ hostName, stateStatus }: HostBarProps) {
       </div>
       <div className="host-spacer" />
       <button
+        className={`palette-trigger interactions-toggle${interactionsEnabled ? ' enabled' : ' disabled'}`}
+        type="button"
+        title={`Interactions ${interactionsEnabled ? 'on' : 'off'}`}
+        aria-label={`Turn interactions ${interactionsEnabled ? 'off' : 'on'}`}
+        aria-pressed={interactionsEnabled}
+        onClick={onToggleInteractions}
+      >
+        <i className={`fa-solid ${interactionsEnabled ? 'fa-comments' : 'fa-comment-slash'}`} aria-hidden="true" />
+      </button>
+      <button
         className="palette-trigger"
         type="button"
         title="Command palette (⌘K)"
         aria-label="Open command palette"
         onClick={() => window.dispatchEvent(new CustomEvent('smux:open-palette'))}
       >
-        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
         <span className="palette-trigger-label">Commands</span>
         <span className="kbd">⌘K</span>
       </button>

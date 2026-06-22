@@ -80,4 +80,9 @@
 .palette-trigger-label { color: inherit; }
 .palette-trigger:hover { background: var(--raised-hi); color: var(--text); border-color: var(--accent-line); }
 .palette-trigger:hover i { color: var(--accent-text); }
+.interactions-toggle.enabled { border-color: var(--accent-line); }
+.interactions-toggle.enabled i { color: var(--accent-text); }
+.interactions-toggle { width: 36px; justify-content: center; padding-inline: 0; }
+.interactions-toggle.disabled { color: var(--muted); }
+.interactions-toggle.disabled i { color: var(--faint); }
 

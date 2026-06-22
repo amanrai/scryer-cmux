@@ -46,24 +46,34 @@
 
 .cmux-shell.theme-sunlight {
   color-scheme: light;
-  --void: #FFFFFF;
-  --surface: #F7F9FC;
-  --raised: #FFFFFF;
-  --raised-hi: #E6EEF8;
-  --line: #AAB8C8;
-  --line-hi: #5B6F86;
-  --text: #06111F;
-  --text-2: #102A43;
-  --muted: #4E647C;
-  --faint: #8A9BAD;
-  --ok: #005FCC;
-  --warn: #2F6FAE;
-  --err: #003B7A;
+
+  /* Depth stack — cool white */
+  --void: #EDF0F4;
+  --surface: #FFFFFF;
+  --raised: #F2F5FA;
+  --raised-hi: #E5ECF6;
+
+  /* Lines */
+  --line: rgba(0, 20, 60, 0.09);
+  --line-hi: rgba(0, 20, 60, 0.20);
+
+  /* Text */
+  --text: #05111E;
+  --text-2: #1C3150;
+  --muted: #3C5472;
+  --faint: #6A8199;
+
+  /* Semantic status */
+  --ok: #0A6E2E;
+  --warn: #8F5200;
+  --err: #B5000B;
+
+  /* Signal accent */
   --accent: #005FCC;
-  --accent-soft: rgba(0, 95, 204, 0.16);
-  --accent-line: #005FCC;
-  --accent-text: #004EA8;
-  --focus: #005FCC;
+  --accent-soft: rgba(0, 95, 204, 0.12);
+  --accent-line: rgba(0, 95, 204, 0.35);
+  --accent-text: #004BAD;
+  --focus: rgba(0, 95, 204, 0.50);
 }
 
 * { box-sizing: border-box; }

@@ -102,7 +102,7 @@
 }
 .pane:hover .pane-action, .pane.active .pane-action { opacity: 1; }
 .pane-action:hover { color: var(--text); background: var(--raised-hi); }
-.theme-sunlight .pane-action:hover { color: #FFFFFF; background: #000000; }
+.theme-sunlight .pane-action:hover { color: #FFFFFF; background: var(--accent); }
 .pane-action.interaction.listening { color: var(--accent); }
 .pane-action.interaction.pending {
   color: var(--void);
