@@ -2,7 +2,7 @@ import os from 'node:os';
 import * as pty from 'node-pty';
 import { maxReplayBytes, shell, shellArgs } from './config.mjs';
 
-const interactionsUrl = (process.env.SCRYER_INTERACTIONS_URL || 'http://127.0.0.1:43217').replace(/\/$/, '');
+const interactionsUrl = (process.env.SCRYER_INTERACTIONS_URL || 'http://100.105.192.98:43217').replace(/\/$/, '');
 const producerMarkerRe = /@@SCRYER_INTERACTION_PRODUCER_V1@@(\{[^@]*\})@@END_SCRYER_INTERACTION_PRODUCER@@/g;
 const interactionPollMs = Number(process.env.SCRYER_INTERACTIONS_POLL_MS || 1500);
 
