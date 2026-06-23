@@ -8,7 +8,7 @@
     "dev:ui": "vite --host 0.0.0.0",
     "dev:terminal": "node server/terminal-server.mjs",
     "dev:gateway": "node server-gateway/gateway-server.mjs",
-    "gateway": "concurrently -k -n gateway,ui -c magenta,blue \"node server-gateway/gateway-server.mjs\" \"VITE_SCRYER_CMUX_API_PORT=43223 vite gateway-ui --host 0.0.0.0\"",
+    "gateway": "concurrently -k -n gateway,ui -c magenta,blue \"node server-gateway/gateway-server.mjs\" \"VITE_SCRYER_CMUX_API_PORT=43223 vite gateway-ui --host 0.0.0.0 --port 43221 --strictPort\"",
     "dev:pty:api": "node server-pty/pty-server.mjs",
     "dev:pty:ui": "node server-pty/admin-ui.mjs",
     "dev:pty": "concurrently -k -n pty-api,pty-ui -c yellow,cyan \"node server-pty/pty-server.mjs\" \"node server-pty/admin-ui.mjs\"",
