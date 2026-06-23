@@ -8,7 +8,7 @@ export const workspaceColors = [
   { name: 'Slate', value: '#8A93A3' },
 ] as const;
 
-export const DEFAULT_FONT_SIZE = 10;
+export const DEFAULT_FONT_SIZE = 12;
 export const API_PORT = import.meta.env.VITE_SCRYER_CMUX_API_PORT ?? '43220';
 export const API_HOST = window.location.hostname || '127.0.0.1';
 export const API_BASE = `http://${API_HOST}:${API_PORT}`;
