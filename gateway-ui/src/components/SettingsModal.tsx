@@ -17,6 +17,9 @@ type SettingsModalProps = {
   onSetMachineNameColor: (color: string) => void;
   buttonSettings: ButtonSettings;
   onSetButtonSettings: (settings: ButtonSettings) => void;
+  reachableBackends?: BackendMachine[];
+  selectedBackendId?: string;
+  onSelectBackend?: (backendId: string) => void;
   onClose: () => void;
 };
 
@@ -31,7 +34,7 @@ function formatLastSeen(value?: string) {
   return date.toLocaleString();
 }
 
-export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons, onSetMachineIcons, onSetMachineName, machineNameColor, onSetMachineNameColor, buttonSettings, onSetButtonSettings, onClose }: SettingsModalProps) {
+export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons, onSetMachineIcons, onSetMachineName, machineNameColor, onSetMachineNameColor, buttonSettings, onSetButtonSettings, reachableBackends, selectedBackendId: controlledBackendId, onSelectBackend, onClose }: SettingsModalProps) {
   const [page, setPage] = useState<SettingsPage>('machine');
   const [ptyPayload, setPtyPayload] = useState<PtyConfigPayload | null>(null);
   const [ptyDraft, setPtyDraft] = useState<PtyConfigPayload['config'] | null>(null);
@@ -41,6 +44,8 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
   const [selectedBackendId, setSelectedBackendId] = useState('');
   const [gatewayMessage, setGatewayMessage] = useState('');
   const [gatewayBusy, setGatewayBusy] = useState(false);
+  const machineBackends = reachableBackends ?? backends;
+  const selectedMachineBackendId = controlledBackendId ?? selectedBackendId;
   const groups = useMemo(() => ['OS', 'Machine'].map((group) => ({
     group,
     options: machineIconOptions.filter((option) => option.group === group),
@@ -174,11 +179,14 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
               <select
                 id="reachable-backend"
                 className="settings-select"
-                value={selectedBackendId}
-                onChange={(event) => setSelectedBackendId(event.target.value)}
+                value={selectedMachineBackendId}
+                onChange={(event) => {
+                  if (onSelectBackend) onSelectBackend(event.target.value);
+                  else setSelectedBackendId(event.target.value);
+                }}
               >
-                {backends.map((backend) => <option key={backend.id} value={backend.id}>{backend.label} · {backend.id}</option>)}
-                {!backends.length ? <option value="">No reachable PTY backends</option> : null}
+                {machineBackends.map((backend) => <option key={backend.id} value={backend.id}>{backend.label} · {backend.id}</option>)}
+                {!machineBackends.length ? <option value="">No reachable PTY backends</option> : null}
               </select>
             </div>
             <div className="machine-name-row">

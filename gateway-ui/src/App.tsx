@@ -120,6 +120,7 @@ export function App() {
   const [workspaceMenu, setWorkspaceMenu] = useState<WorkspaceMenuState | null>(null);
   const [commandInput, setCommandInput] = useState<{ paneId: string; paneTitle: string; recentLines: string[] } | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settingsBackendId, setSettingsBackendId] = useState('');
   const paneApis = useRef<Record<string, TerminalPaneApi>>({});
   const hasLoadedServerState = useRef(false);
 
@@ -133,6 +134,12 @@ export function App() {
   const machineNameDraft = machineNamesByHost[machineCustomizationKey] ?? hostName;
   const displayHostName = machineNameDraft.trim() || hostName;
   const machineNameColor = machineNameColorsByHost[machineCustomizationKey];
+  const settingsMachineKey = settingsBackendId || machineCustomizationKey;
+  const settingsBackend = reachableBackends.find((backend) => backend.id === settingsMachineKey);
+  const settingsDefaultHostName = settingsBackend?.label || hostName;
+  const settingsMachineNameDraft = machineNamesByHost[settingsMachineKey] ?? settingsDefaultHostName;
+  const settingsSelectedMachineIcons = machineIconsByHost[settingsMachineKey] ?? [];
+  const settingsMachineNameColor = machineNameColorsByHost[settingsMachineKey];
 
   const loadReachableBackends = useCallback(async () => {
     try {
@@ -160,6 +167,7 @@ export function App() {
 
   useEffect(() => {
     localStorage.setItem('amux-active-backend-id', activeBackendId);
+    setSettingsBackendId((current) => current || activeBackendId);
   }, [activeBackendId]);
 
   useEffect(() => {
@@ -527,7 +535,7 @@ export function App() {
       icon: 'fa-solid fa-gear',
       label: 'Settings',
       hint: 'open',
-      onSelect: () => setSettingsVisible(true),
+      onSelect: () => { setSettingsBackendId(activeBackendId); setSettingsVisible(true); },
     },
     { id: 'appearance-heading', separator: true, icon: '', label: 'Appearance' },
     {
@@ -616,15 +624,18 @@ export function App() {
       {renameTarget ? <RenameModal target={renameTarget} draft={renameDraft} onDraftChange={setRenameDraft} onSubmit={submitRename} onCancel={() => setRenameTarget(null)} /> : null}
       {settingsVisible ? (
         <SettingsModal
-          hostName={machineNameDraft}
-          defaultHostName={hostName}
-          selectedMachineIcons={selectedMachineIcons}
-          onSetMachineIcons={(icons) => setMachineIconsByHost((current) => ({ ...current, [machineCustomizationKey]: icons }))}
-          onSetMachineName={(name) => setMachineNamesByHost((current) => ({ ...current, [machineCustomizationKey]: name }))}
-          machineNameColor={machineNameColor}
-          onSetMachineNameColor={(color) => setMachineNameColorsByHost((current) => ({ ...current, [machineCustomizationKey]: color }))}
+          hostName={settingsMachineNameDraft}
+          defaultHostName={settingsDefaultHostName}
+          selectedMachineIcons={settingsSelectedMachineIcons}
+          onSetMachineIcons={(icons) => setMachineIconsByHost((current) => ({ ...current, [settingsMachineKey]: icons }))}
+          onSetMachineName={(name) => setMachineNamesByHost((current) => ({ ...current, [settingsMachineKey]: name }))}
+          machineNameColor={settingsMachineNameColor}
+          onSetMachineNameColor={(color) => setMachineNameColorsByHost((current) => ({ ...current, [settingsMachineKey]: color }))}
           buttonSettings={hostButtonSettings}
           onSetButtonSettings={setHostButtonSettings}
+          reachableBackends={reachableBackends}
+          selectedBackendId={settingsMachineKey}
+          onSelectBackend={setSettingsBackendId}
           onClose={() => setSettingsVisible(false)}
         />
       ) : null}
