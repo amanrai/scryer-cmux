@@ -128,10 +128,11 @@ export function App() {
   const activePane = activeWorkspace.panes[0];
   const activePaneInteractionState = paneInteractionState[activePane.id] ?? { hasProducer: false, hasPending: false };
   const activePaneActivityState = paneActivityState[activePane.id] ?? { count: 0, unread: 0 };
-  const selectedMachineIcons = machineIconsByHost[hostName] ?? [];
-  const machineNameDraft = machineNamesByHost[hostName] ?? hostName;
+  const machineCustomizationKey = activeBackendId || hostName;
+  const selectedMachineIcons = machineIconsByHost[machineCustomizationKey] ?? [];
+  const machineNameDraft = machineNamesByHost[machineCustomizationKey] ?? hostName;
   const displayHostName = machineNameDraft.trim() || hostName;
-  const machineNameColor = machineNameColorsByHost[hostName];
+  const machineNameColor = machineNameColorsByHost[machineCustomizationKey];
 
   const loadReachableBackends = useCallback(async () => {
     try {
@@ -618,10 +619,10 @@ export function App() {
           hostName={machineNameDraft}
           defaultHostName={hostName}
           selectedMachineIcons={selectedMachineIcons}
-          onSetMachineIcons={(icons) => setMachineIconsByHost((current) => ({ ...current, [hostName]: icons }))}
-          onSetMachineName={(name) => setMachineNamesByHost((current) => ({ ...current, [hostName]: name }))}
+          onSetMachineIcons={(icons) => setMachineIconsByHost((current) => ({ ...current, [machineCustomizationKey]: icons }))}
+          onSetMachineName={(name) => setMachineNamesByHost((current) => ({ ...current, [machineCustomizationKey]: name }))}
           machineNameColor={machineNameColor}
-          onSetMachineNameColor={(color) => setMachineNameColorsByHost((current) => ({ ...current, [hostName]: color }))}
+          onSetMachineNameColor={(color) => setMachineNameColorsByHost((current) => ({ ...current, [machineCustomizationKey]: color }))}
           buttonSettings={hostButtonSettings}
           onSetButtonSettings={setHostButtonSettings}
           onClose={() => setSettingsVisible(false)}
