@@ -9,16 +9,26 @@ function machineIdFromHost() {
   return getDisplayHostName().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'amux-pty';
 }
 
+function ptyPublicUrl() {
+  return `http://${getDisplayHostName()}:${port}`;
+}
+
+function normalizeConfig(next) {
+  return {
+    ...next,
+    publicUrl: ptyPublicUrl(),
+  };
+}
+
 function defaultConfig() {
   const label = getDisplayHostName();
-  return {
+  return normalizeConfig({
     gatewayUrl: process.env.AMUX_GATEWAY_URL ?? '',
     machineId: process.env.AMUX_PTY_MACHINE_ID ?? machineIdFromHost(),
     machineName: process.env.AMUX_PTY_MACHINE_NAME ?? label,
-    publicUrl: process.env.AMUX_PTY_PUBLIC_URL ?? `http://${getDisplayHostName()}:${port}`,
     heartbeatEnabled: process.env.AMUX_PTY_HEARTBEAT_ENABLED !== '0',
     heartbeatMs: defaultHeartbeatMs,
-  };
+  });
 }
 
 let config = loadConfig();
@@ -28,7 +38,7 @@ let heartbeatTimer;
 export function loadConfig() {
   try {
     if (!fs.existsSync(gatewayConfigPath)) return defaultConfig();
-    return { ...defaultConfig(), ...JSON.parse(fs.readFileSync(gatewayConfigPath, 'utf8')) };
+    return normalizeConfig({ ...defaultConfig(), ...JSON.parse(fs.readFileSync(gatewayConfigPath, 'utf8')) });
   } catch (error) {
     console.warn(`Could not read PTY gateway config: ${error instanceof Error ? error.message : String(error)}`);
     return defaultConfig();
@@ -45,7 +55,7 @@ export function saveConfig(next) {
     gatewayUrl: String(next.gatewayUrl ?? '').replace(/\/$/, ''),
     machineId: String(next.machineId ?? config.machineId).trim() || machineIdFromHost(),
     machineName: String(next.machineName ?? config.machineName).trim() || getDisplayHostName(),
-    publicUrl: String(next.publicUrl ?? config.publicUrl).replace(/\/$/, ''),
+    publicUrl: ptyPublicUrl(),
     heartbeatEnabled: Boolean(next.heartbeatEnabled),
     heartbeatMs: Math.max(5_000, Number(next.heartbeatMs ?? config.heartbeatMs ?? defaultHeartbeatMs)),
   };

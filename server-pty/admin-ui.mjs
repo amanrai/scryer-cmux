@@ -44,7 +44,7 @@ function html() {
         <label>Machine ID<input id="machineId" /></label>
         <label>Machine name<input id="machineName" /></label>
       </div>
-      <label>PTY URL reachable by gateway<input id="publicUrl" placeholder="http://this-machine:43222" /></label>
+      <label>PTY URL reachable by gateway<input id="publicUrl" placeholder="http://tailnet-name:43222" readonly /></label>
       <label class="check"><input id="heartbeatEnabled" type="checkbox" /> Heartbeat enabled</label>
       <div class="actions">
         <button type="button" id="reload">Reload</button>
