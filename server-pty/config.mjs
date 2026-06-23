@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const repoRoot = path.resolve(__dirname, '..');
 export const port = Number(process.env.AMUX_PTY_API_PORT ?? process.env.SCRYER_PTY_API_PORT ?? 43222);
+export const adminPort = Number(process.env.AMUX_PTY_ADMIN_PORT ?? 43230);
 export const shell = process.env.SHELL || (process.platform === 'win32' ? 'powershell.exe' : '/bin/zsh');
 export const shellArgs = process.platform === 'win32' ? [] : ['-il'];
 export const statePath = path.join(repoRoot, '.amux-pty-state.json');

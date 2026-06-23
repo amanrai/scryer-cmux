@@ -43,9 +43,19 @@ Defaults:
 
 ```text
 AMUX_PTY_API_PORT=43222
+AMUX_PTY_ADMIN_PORT=43230
 state file: .amux-pty-state.json
+config file: .amux-pty-config.json
 uploads: $TMPDIR/amux-pty-uploads
 ```
+
+The PTY service also has a tiny standalone admin UI intended for onboarding a machine before it is visible to the gateway:
+
+```text
+http://<machine>:43230/
+```
+
+Use it to set the gateway URL, machine ID/name, public PTY URL, and register/heartbeat status.
 
 ### `server-gateway/`
 
@@ -110,6 +120,7 @@ npm run dev:bifurcated
 That starts:
 
 - PTY backend on `43222`
+- PTY admin UI on `43230`
 - gateway on `43223`
 - Vite frontend pointed at gateway port `43223`
 
@@ -121,7 +132,7 @@ npm run dev:gateway
 npm run dev:ui
 ```
 
-Settings → PTY configures the local PTY server with a gateway URL and registers it. Settings → Gateway lists machines registered with the gateway that the frontend is currently using.
+The standalone PTY admin UI at `:43230` configures the local PTY server with a gateway URL and registers it before it is visible elsewhere. Settings → PTY offers the same controls from the main app when the frontend can already reach that PTY via the gateway. Settings → Gateway lists machines registered with the gateway that the frontend is currently using.
 
 If running pieces separately and using the UI against the gateway, start Vite with:
 
