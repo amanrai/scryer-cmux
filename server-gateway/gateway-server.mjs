@@ -26,6 +26,10 @@ function findBackend(id = 'local') {
   return registry.find(id);
 }
 
+function defaultBackend() {
+  return registry.list().find((backend) => backend.kind === 'pty' && backend.status === 'online') ?? findBackend('local') ?? registry.list()[0];
+}
+
 async function readJson(req) {
   const body = await readBody(req);
   if (!body.length) return {};
@@ -127,9 +131,9 @@ const server = createServer(async (req, res) => {
   }
 
   // Compatibility routes: preserve the existing frontend contract by routing to the local backend.
-  const local = findBackend('local') ?? registry.list()[0];
-  if (local && (url.pathname === '/api/state' || url.pathname === '/api/upload' || url.pathname === '/api/pty-config' || url.pathname === '/api/pty-config/register' || url.pathname.startsWith('/api/pm/') || url.pathname.startsWith('/api/sessions/'))) {
-    await proxyHttp(req, res, local, `${url.pathname}${url.search}`);
+  const compatibilityBackend = defaultBackend();
+  if (compatibilityBackend && (url.pathname === '/api/state' || url.pathname === '/api/upload' || url.pathname === '/api/pty-config' || url.pathname === '/api/pty-config/register' || url.pathname.startsWith('/api/pm/') || url.pathname.startsWith('/api/sessions/'))) {
+    await proxyHttp(req, res, compatibilityBackend, `${url.pathname}${url.search}`);
     return;
   }
 
@@ -172,7 +176,7 @@ server.on('upgrade', (req, socket, head) => {
     backend = findBackend(decodeURIComponent(match[1]));
     upstreamPath = new URL(`/api/terminal${url.search}`, 'http://placeholder');
   } else if (url.pathname === '/api/terminal') {
-    backend = findBackend('local') ?? registry.list()[0];
+    backend = defaultBackend();
     upstreamPath = new URL(`/api/terminal${url.search}`, 'http://placeholder');
   }
 
