@@ -522,13 +522,16 @@ export function App() {
 
   const commandActions = useMemo(() => [
     { id: 'machine-heading', separator: true, icon: '', label: 'Machine' },
-    ...reachableBackends.map((backend) => ({
-      id: `switch-backend-${backend.id}`,
-      icon: backend.id === activeBackendId ? 'fa-solid fa-circle-dot' : 'fa-solid fa-server',
-      label: `Switch machine: ${backend.label}`,
-      hint: backend.id === activeBackendId ? 'current' : backend.id,
-      onSelect: () => switchBackend(backend),
-    })),
+    ...reachableBackends.map((backend) => {
+      const displayName = machineNamesByHost[backend.id]?.trim() || backend.label;
+      return {
+        id: `switch-backend-${backend.id}`,
+        icon: backend.id === activeBackendId ? 'fa-solid fa-circle-dot' : 'fa-solid fa-server',
+        label: `Switch machine: ${displayName}`,
+        hint: backend.id === activeBackendId ? 'current' : backend.id,
+        onSelect: () => switchBackend(backend),
+      };
+    }),
     { id: 'app-heading', separator: true, icon: '', label: 'App' },
     {
       id: 'settings',
@@ -546,7 +549,7 @@ export function App() {
       onSelect: () => setThemeName((value) => value === 'sunlight' ? 'dark' : 'sunlight'),
     },
     ...actions,
-  ], [activeBackendId, actions, reachableBackends, themeName]);
+  ], [activeBackendId, actions, machineNamesByHost, reachableBackends, themeName]);
 
   return (
     <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': activeWorkspace.color })}>
