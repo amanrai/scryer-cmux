@@ -1,0 +1,21 @@
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .cmux-shell { grid-template-columns: 1fr; grid-template-areas: "host" "main"; }
+  .workspace-sidebar { display: none; }
+  .host-metrics .metric.workspaces, .host-divider { display: none; }
+  .terminal-stage { padding: 0; }
+  .workspace-surface { inset: 0; }
+  .pane { border-radius: 0; border: 0; }
+  .pane-grid { display: block; }
+  .pane-grid .pane { display: none; height: 100%; }
+  .pane-grid .pane.active { display: grid; }
+  .palette { top: 8vh; max-height: 80vh; }
+}
+
+@media (pointer: coarse) {
+  .terminal-accessory { display: flex; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

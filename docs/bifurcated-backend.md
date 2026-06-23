@@ -111,28 +111,35 @@ Existing monolithic dev flow remains:
 npm run dev
 ```
 
-Fresh bifurcated prototype:
+Gateway UI + gateway server:
 
 ```bash
-npm run dev:bifurcated
+npm run gateway
+```
+
+That starts:
+
+- gateway on `43223`
+- cloned gateway Vite UI on `43221`, pointed at gateway port `43223`
+
+PTY-only machine runtime:
+
+```bash
+npm run pty
 ```
 
 That starts:
 
 - PTY backend on `43222`
 - PTY admin UI on `43230`
-- gateway on `43223`
-- Vite frontend pointed at gateway port `43223`
-
-Individual pieces:
-
-```bash
-npm run dev:pty
-npm run dev:gateway
-npm run dev:ui
-```
 
 The standalone PTY admin UI at `:43230` configures the local PTY server with a gateway URL and registers it before it is visible elsewhere. Settings → PTY offers the same controls from the main app when the frontend can already reach that PTY via the gateway. Settings → Gateway lists machines registered with the gateway that the frontend is currently using.
+
+Legacy/basic local flow remains:
+
+```bash
+npm run dev
+```
 
 If running pieces separately and using the UI against the gateway, start Vite with:
 

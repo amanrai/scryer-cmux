@@ -1,0 +1,117 @@
+/* ── Shell layout ───────────────────────────────────────────── */
+.cmux-shell {
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-areas: "host host" "side main";
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  background: var(--void);
+  transition: grid-template-columns 0.18s ease;
+}
+.cmux-shell.nav-collapsed { grid-template-columns: 52px minmax(0, 1fr); }
+
+/* ── Host bar (signature instrument readout) ────────────────── */
+.host-bar {
+  grid-area: host;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.host-identity { display: flex; align-items: center; gap: 9px; min-width: 0; border-radius: var(--radius-sm); padding: 4px 6px; margin-left: -6px; }
+.host-identity:hover { background: var(--raised-hi); }
+.host-name {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.host-name b { color: var(--machine-name); font-weight: 600; }
+.host-machine-icon { color: var(--muted); font-size: 14px; }
+.host-machine-icon.synced { color: var(--ok); }
+.host-machine-icon.loading,
+.host-machine-icon.offline { color: var(--faint); }
+
+.host-divider { width: 1px; height: 22px; background: var(--line-hi); flex: 0 0 auto; }
+
+.host-metrics { display: flex; align-items: center; gap: 20px; min-width: 0; }
+.metric { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.metric.active-pane .metric-value { color: var(--accent-text); }
+
+.host-spacer { margin-left: auto; }
+.host-actions { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
+.host-action {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.host-action:hover { color: var(--text); background: var(--raised-hi); }
+.host-action.interaction.listening { color: var(--accent); }
+.host-action.interaction.pending { color: var(--void); background: var(--accent); box-shadow: 0 0 14px var(--accent-soft); }
+.host-action.activity.unread { color: var(--accent-text); }
+.host-action.activity.level-warning { color: var(--warn); }
+.host-action.activity.level-error { color: var(--err); }
+.host-action.activity.level-success { color: var(--ok); }
+.host-action-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--line-hi); flex: 0 0 auto; }
+.host-action-badge {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  color: var(--void);
+  background: var(--accent);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+.palette-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 9px;
+  border: 1px solid var(--line-hi);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.palette-trigger i { font-size: 12px; color: var(--muted); }
+.palette-trigger-label { color: inherit; }
+.palette-trigger:hover { background: var(--raised-hi); color: var(--text); border-color: var(--accent-line); }
+.palette-trigger:hover i { color: var(--accent-text); }
+.interactions-toggle.enabled { border-color: var(--accent-line); }
+.interactions-toggle.enabled i { color: var(--accent-text); }
+.interactions-toggle { width: 36px; justify-content: center; padding-inline: 0; }
+.interactions-toggle.disabled { color: var(--muted); }
+.interactions-toggle.disabled i { color: var(--faint); }
+

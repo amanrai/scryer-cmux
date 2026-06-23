@@ -15,7 +15,7 @@ function defaultConfig() {
     gatewayUrl: process.env.AMUX_GATEWAY_URL ?? '',
     machineId: process.env.AMUX_PTY_MACHINE_ID ?? machineIdFromHost(),
     machineName: process.env.AMUX_PTY_MACHINE_NAME ?? label,
-    publicUrl: process.env.AMUX_PTY_PUBLIC_URL ?? `http://127.0.0.1:${port}`,
+    publicUrl: process.env.AMUX_PTY_PUBLIC_URL ?? `http://${getDisplayHostName()}:${port}`,
     heartbeatEnabled: process.env.AMUX_PTY_HEARTBEAT_ENABLED !== '0',
     heartbeatMs: defaultHeartbeatMs,
   };
