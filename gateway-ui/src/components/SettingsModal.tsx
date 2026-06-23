@@ -99,7 +99,7 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
       const response = await fetch(`${API_BASE}/api/backends`);
       if (!response.ok) throw new Error(`Gateway registry unavailable (${response.status})`);
       const payload = await response.json() as { backends?: BackendMachine[] };
-      setBackends(payload.backends ?? []);
+      setBackends((payload.backends ?? []).filter((backend) => backend.kind === 'pty' && backend.status === 'online'));
     } catch (error) {
       setGatewayMessage(error instanceof Error ? error.message : 'Could not load gateway registry');
     } finally {
@@ -240,7 +240,7 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
           {page === 'gateway' ? <div className="settings-page">
             <div className="settings-page-heading">
               <h3>Gateway registry</h3>
-              <p>Machines registered with the gateway this frontend is using.</p>
+              <p>Reachable PTY machines registered with the gateway this frontend is using.</p>
             </div>
             <div className="modal-actions settings-actions-left"><button type="button" className="ghost-button" disabled={gatewayBusy} onClick={() => void loadBackends()}>Refresh</button></div>
             {gatewayMessage ? <div className="settings-error">{gatewayMessage}</div> : null}
@@ -252,7 +252,7 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
                 <div className="backend-card-meta">Last seen: {formatLastSeen(backend.lastSeenAt)}</div>
                 {backend.capabilities?.length ? <div className="backend-tags">{backend.capabilities.map((capability) => <span key={capability}>{capability}</span>)}</div> : null}
               </article>)}
-              {!backends.length && !gatewayBusy ? <div className="settings-status-line">No backends registered.</div> : null}
+              {!backends.length && !gatewayBusy ? <div className="settings-status-line">No reachable PTY backends registered.</div> : null}
               {gatewayBusy ? <div className="settings-status-line">Loading registry…</div> : null}
             </div>
           </div> : null}
