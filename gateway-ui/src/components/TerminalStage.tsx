@@ -13,6 +13,7 @@ type TerminalStageProps = {
   themeName: SmuxThemeName;
   terminalFocusToken: number;
   interactionsEnabled: boolean;
+  activeBackendId?: string;
   onActivateWorkspace: (workspaceId: string) => void;
   onSetActivePane: (paneId: string, workspaceId?: string) => void;
   onOpenCommandInput: (pane: PaneModel, workspaceId: string) => void;
@@ -31,6 +32,7 @@ export function TerminalStage({
   themeName,
   terminalFocusToken,
   interactionsEnabled,
+  activeBackendId,
   onActivateWorkspace,
   onSetActivePane,
   onOpenCommandInput,
@@ -73,6 +75,7 @@ export function TerminalStage({
                       fontSize={paneFontSize[pane.id] ?? DEFAULT_FONT_SIZE}
                       focusToken={isActive ? terminalFocusToken : 0}
                       interactionsEnabled={interactionsEnabled}
+                      backendId={activeBackendId}
                       onStatus={onPaneStatus}
                       onRegisterApi={onRegisterPaneApi}
                       onInteractionState={onPaneInteractionState}

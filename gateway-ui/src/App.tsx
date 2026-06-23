@@ -13,7 +13,7 @@ import { WorkspaceContextMenu } from './components/WorkspaceContextMenu';
 import { useCommandActions } from './hooks/useCommandActions';
 import { useServerStateSync } from './hooks/useServerStateSync';
 import type { TerminalPaneApi } from './TerminalPane';
-import type { ColorPickerState, PaneModel, PaneStatus, RenameTarget, WorkspaceMenuState, WorkspaceModel } from './types';
+import type { BackendMachine, ColorPickerState, PaneModel, PaneStatus, RenameTarget, WorkspaceMenuState, WorkspaceModel } from './types';
 import type { SmuxThemeName } from './terminal/theme';
 import { machineIconClass, sanitizeMachineIconIds, type MachineIconId } from './machineIcons';
 import { makePane, makeWorkspace, makeId } from './workspaceModel';
@@ -89,6 +89,10 @@ function loadMachineNameColors() {
   }
 }
 
+function loadActiveBackendId() {
+  return localStorage.getItem('amux-active-backend-id') ?? '';
+}
+
 export function App() {
   const initialWorkspace = useMemo(() => makeWorkspace(1), []);
   const [workspaces, setWorkspaces] = useState<WorkspaceModel[]>(() => [initialWorkspace]);
@@ -97,6 +101,8 @@ export function App() {
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [stateStatus, setStateStatus] = useState<'loading' | 'synced' | 'offline'>('loading');
+  const [reachableBackends, setReachableBackends] = useState<BackendMachine[]>([]);
+  const [activeBackendId, setActiveBackendId] = useState(loadActiveBackendId);
   const [navCollapsed, setNavCollapsed] = useState(() => localStorage.getItem('smux-nav-collapsed') === 'true');
   const [hostName, setHostName] = useState('smux');
   const [terminalFocusToken, setTerminalFocusToken] = useState(0);
@@ -126,6 +132,34 @@ export function App() {
   const machineNameDraft = machineNamesByHost[hostName] ?? hostName;
   const displayHostName = machineNameDraft.trim() || hostName;
   const machineNameColor = machineNameColorsByHost[hostName];
+
+  const loadReachableBackends = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/backends`);
+      if (!response.ok) return;
+      const payload = await response.json() as { backends?: BackendMachine[] };
+      const reachable = (payload.backends ?? []).filter((backend) => backend.kind === 'pty' && backend.status === 'online');
+      setReachableBackends(reachable);
+      setActiveBackendId((current) => {
+        if (current && reachable.some((backend) => backend.id === current)) return current;
+        if (!reachable[0]?.id) return current;
+        hasLoadedServerState.current = false;
+        setStateStatus('loading');
+        setHostName(reachable[0].label || reachable[0].id);
+        return reachable[0].id;
+      });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    void loadReachableBackends();
+    const timer = window.setInterval(() => { void loadReachableBackends(); }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [loadReachableBackends]);
+
+  useEffect(() => {
+    localStorage.setItem('amux-active-backend-id', activeBackendId);
+  }, [activeBackendId]);
 
   useEffect(() => {
     localStorage.setItem('smux-nav-collapsed', String(navCollapsed));
@@ -204,6 +238,7 @@ export function App() {
   useServerStateSync({
     workspaces,
     activeWorkspaceId,
+    activeBackendId,
     loadedRef: hasLoadedServerState,
     setWorkspaces,
     setActiveWorkspaceId,
@@ -216,7 +251,21 @@ export function App() {
   }
 
   function closeServerSession(paneId: string) {
-    fetch(`${API_BASE}/api/sessions/${encodeURIComponent(paneId)}`, { method: 'DELETE' }).catch(() => setStateStatus('offline'));
+    const path = activeBackendId ? `${API_BASE}/api/backends/${encodeURIComponent(activeBackendId)}/sessions/${encodeURIComponent(paneId)}` : `${API_BASE}/api/sessions/${encodeURIComponent(paneId)}`;
+    fetch(path, { method: 'DELETE' }).catch(() => setStateStatus('offline'));
+  }
+
+  function switchBackend(backend: BackendMachine) {
+    if (!backend.id || backend.id === activeBackendId) return;
+    hasLoadedServerState.current = false;
+    paneApis.current = {};
+    setPaneStatus({});
+    setPaneInteractionState({});
+    setPaneActivityState({});
+    setHostName(backend.label || backend.id);
+    setStateStatus('loading');
+    setActiveBackendId(backend.id);
+    focusActiveTerminalSoon();
   }
 
   function focusActiveTerminalSoon() {
@@ -463,6 +512,14 @@ export function App() {
   });
 
   const commandActions = useMemo(() => [
+    { id: 'machine-heading', separator: true, icon: '', label: 'Machine' },
+    ...reachableBackends.map((backend) => ({
+      id: `switch-backend-${backend.id}`,
+      icon: backend.id === activeBackendId ? 'fa-solid fa-circle-dot' : 'fa-solid fa-server',
+      label: `Switch machine: ${backend.label}`,
+      hint: backend.id === activeBackendId ? 'current' : backend.id,
+      onSelect: () => switchBackend(backend),
+    })),
     { id: 'app-heading', separator: true, icon: '', label: 'App' },
     {
       id: 'settings',
@@ -480,7 +537,7 @@ export function App() {
       onSelect: () => setThemeName((value) => value === 'sunlight' ? 'dark' : 'sunlight'),
     },
     ...actions,
-  ], [actions, themeName]);
+  ], [activeBackendId, actions, reachableBackends, themeName]);
 
   return (
     <div className={`cmux-shell theme-${themeName}${navCollapsed ? ' nav-collapsed' : ''}`} style={cssVars({ '--accent': activeWorkspace.color })}>
@@ -528,6 +585,7 @@ export function App() {
         themeName={themeName}
         terminalFocusToken={terminalFocusToken}
         interactionsEnabled={interactionsEnabled}
+        activeBackendId={activeBackendId}
         onActivateWorkspace={activateWorkspace}
         onSetActivePane={setActivePane}
         onOpenCommandInput={openCommandInput}

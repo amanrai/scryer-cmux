@@ -1,5 +1,5 @@
 import { useEffect, type MutableRefObject } from 'react';
-import { API_BASE } from '../constants';
+import { backendApiPath } from '../constants';
 import type { AppState, WorkspaceModel } from '../types';
 
 type StateStatus = 'loading' | 'synced' | 'offline';
@@ -7,6 +7,7 @@ type StateStatus = 'loading' | 'synced' | 'offline';
 type UseServerStateSyncArgs = {
   workspaces: WorkspaceModel[];
   activeWorkspaceId: string;
+  activeBackendId?: string;
   loadedRef: MutableRefObject<boolean>;
   setWorkspaces: (workspaces: WorkspaceModel[]) => void;
   setActiveWorkspaceId: (workspaceId: string) => void;
@@ -17,6 +18,7 @@ type UseServerStateSyncArgs = {
 export function useServerStateSync({
   workspaces,
   activeWorkspaceId,
+  activeBackendId,
   loadedRef,
   setWorkspaces,
   setActiveWorkspaceId,
@@ -25,7 +27,7 @@ export function useServerStateSync({
 }: UseServerStateSyncArgs) {
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/api/state`)
+    fetch(backendApiPath(activeBackendId, '/state'))
       .then((response) => {
         if (!response.ok) throw new Error(`state load failed: ${response.status}`);
         return response.json() as Promise<AppState>;
@@ -44,11 +46,11 @@ export function useServerStateSync({
         setStateStatus('offline');
       });
     return () => { cancelled = true; };
-  }, [loadedRef, setActiveWorkspaceId, setHostName, setStateStatus, setWorkspaces]);
+  }, [activeBackendId, loadedRef, setActiveWorkspaceId, setHostName, setStateStatus, setWorkspaces]);
 
   useEffect(() => {
     if (!loadedRef.current) return;
-    fetch(`${API_BASE}/api/state`, {
+    fetch(backendApiPath(activeBackendId, '/state'), {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ workspaces, activeWorkspaceId }),
@@ -63,20 +65,20 @@ export function useServerStateSync({
         setStateStatus('synced');
       })
       .catch(() => setStateStatus('offline'));
-  }, [activeWorkspaceId, loadedRef, setHostName, setStateStatus, workspaces]);
+  }, [activeBackendId, activeWorkspaceId, loadedRef, setHostName, setStateStatus, workspaces]);
 
   useEffect(() => {
     function flushState() {
       if (!loadedRef.current) return;
       const payload = JSON.stringify({ workspaces, activeWorkspaceId });
       if (navigator.sendBeacon) {
-        navigator.sendBeacon(`${API_BASE}/api/state`, new Blob([payload], { type: 'application/json' }));
+        navigator.sendBeacon(backendApiPath(activeBackendId, '/state'), new Blob([payload], { type: 'application/json' }));
         return;
       }
-      fetch(`${API_BASE}/api/state`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+      fetch(backendApiPath(activeBackendId, '/state'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
     }
 
     window.addEventListener('pagehide', flushState);
     return () => window.removeEventListener('pagehide', flushState);
-  }, [activeWorkspaceId, loadedRef, workspaces]);
+  }, [activeBackendId, activeWorkspaceId, loadedRef, workspaces]);
 }

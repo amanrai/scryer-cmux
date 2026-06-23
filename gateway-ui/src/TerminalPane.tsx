@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
 import '@xterm/xterm/css/xterm.css';
-import { API_BASE, WS_BASE } from './constants';
+import { backendApiPath, backendTerminalWsUrl } from './constants';
 import { terminalTheme } from './terminal/theme';
 import type { SmuxThemeName } from './terminal/theme';
 import { shellQuote, uploadFile } from './terminal/upload';
@@ -46,6 +46,7 @@ type TerminalPaneProps = {
   fontSize: number;
   focusToken: number;
   interactionsEnabled: boolean;
+  backendId?: string;
   onStatus?: (paneId: string, status: PaneStatus) => void;
   onRegisterApi?: (paneId: string, api: TerminalPaneApi | null) => void;
   onOpenCommandInput?: () => void;
@@ -154,7 +155,7 @@ function taskDescription(task: PmTask) {
   return parts.join(' · ');
 }
 
-function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (data: string) => void }) {
+function ScryerPickerModal({ backendId, onClose, onSend }: { backendId?: string; onClose: () => void; onSend: (data: string) => void }) {
   const [projects, setProjects] = useState<PmProject[]>([]);
   const [tasks, setTasks] = useState<PmTask[]>([]);
   const [selectedProject, setSelectedProject] = useState<PmProject | null>(null);
@@ -178,7 +179,7 @@ function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (
   useEffect(() => {
     let cancelled = false;
     setLoading('projects');
-    fetch(`${API_BASE}/api/pm/projects`)
+    fetch(backendApiPath(backendId, '/pm/projects'))
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
         return res.json();
@@ -191,7 +192,7 @@ function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (
       })
       .catch((err) => { if (!cancelled) { setError(err?.message ?? String(err)); setLoading(''); } });
     return () => { cancelled = true; };
-  }, []);
+  }, [backendId]);
 
   function selectProject(project: PmProject) {
     setSelectedProject(project);
@@ -200,7 +201,7 @@ function ScryerPickerModal({ onClose, onSend }: { onClose: () => void; onSend: (
     setTasks([]);
     setError('');
     setLoading('tickets');
-    fetch(`${API_BASE}/api/pm/tasks?project_id=${encodeURIComponent(project.id)}`)
+    fetch(backendApiPath(backendId, `/pm/tasks?project_id=${encodeURIComponent(project.id)}`))
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
         return res.json();
@@ -480,7 +481,7 @@ function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
   );
 }
 
-export function TerminalPane({ paneId, active, accentColor, themeName, fontSize, focusToken, interactionsEnabled, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState, onActivityState }: TerminalPaneProps) {
+export function TerminalPane({ paneId, active, accentColor, themeName, fontSize, focusToken, interactionsEnabled, backendId, onStatus, onRegisterApi, onOpenCommandInput, onInteractionState, onActivityState }: TerminalPaneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -535,7 +536,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
     fit.fit();
     if (active) term.focus();
 
-    const socket = new WebSocket(`${WS_BASE}?paneId=${encodeURIComponent(paneId)}`);
+    const socket = new WebSocket(backendTerminalWsUrl(backendId, paneId));
     socketRef.current = socket;
     termRef.current = term;
     fitRef.current = fit;
@@ -617,7 +618,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       socket.close();
       term.dispose();
     };
-  }, [paneId]);
+  }, [backendId, paneId]);
 
   useEffect(() => {
     if (termRef.current) termRef.current.options.theme = terminalTheme(accentColor, themeName);
@@ -744,7 +745,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
     setDropActive(false);
     const paths: string[] = [];
     for (const file of files) {
-      const savedPath = await uploadFile(file);
+      const savedPath = await uploadFile(file, backendId);
       if (savedPath) paths.push(shellQuote(savedPath));
     }
     if (paths.length > 0) send(`${paths.join(' ')} `);
@@ -822,7 +823,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       {scryerPickerVisible ? (
         <>
           <div className="modal-touch-guard" aria-hidden="true" />
-          <ScryerPickerModal onClose={() => setScryerPickerVisible(false)} onSend={(data) => send(data, false)} />
+          <ScryerPickerModal backendId={backendId} onClose={() => setScryerPickerVisible(false)} onSend={(data) => send(data, false)} />
         </>
       ) : null}
       {quickInputsVisible ? (

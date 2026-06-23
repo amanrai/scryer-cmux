@@ -1,22 +1,19 @@
-import { API_BASE } from '../constants';
+import { backendApiPath } from '../constants';
 
-export function shellQuote(value: string) {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
+export function shellQuote(path: string) {
+  return `'${path.replace(/'/g, `'\\''`)}'`;
 }
 
-export async function uploadFile(file: File): Promise<string | null> {
+export async function uploadFile(file: File, backendId?: string): Promise<string | null> {
   try {
-    const response = await fetch(`${API_BASE}/api/upload`, {
+    const response = await fetch(backendApiPath(backendId, '/upload'), {
       method: 'POST',
-      headers: {
-        'content-type': file.type || 'application/octet-stream',
-        'x-smux-filename': encodeURIComponent(file.name),
-      },
+      headers: { 'x-smux-filename': encodeURIComponent(file.name) },
       body: file,
     });
     if (!response.ok) return null;
-    const data = await response.json();
-    return typeof data.path === 'string' ? data.path : null;
+    const payload = await response.json() as { path?: string };
+    return payload.path ?? null;
   } catch {
     return null;
   }
