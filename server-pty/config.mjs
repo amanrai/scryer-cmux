@@ -13,5 +13,5 @@ export const statePath = path.join(repoRoot, '.amux-pty-state.json');
 export const gatewayConfigPath = path.join(repoRoot, '.amux-pty-config.json');
 export const uploadsDir = path.join(os.tmpdir(), 'amux-pty-uploads');
 export const maxUploadBytes = 50 * 1024 * 1024;
-export const maxReplayBytes = Number(process.env.AMUX_PTY_MAX_REPLAY_BYTES ?? process.env.SCRYER_CMUX_MAX_REPLAY_BYTES ?? 100 * 1024);
+export const maxReplayBytes = Number(process.env.AMUX_PTY_MAX_REPLAY_BYTES ?? process.env.SCRYER_CMUX_MAX_REPLAY_BYTES ?? 250_000);
 export const pmUrl = (process.env.SCRYER_PM_URL ?? 'http://100.105.192.98:43210').replace(/\/$/, '');
