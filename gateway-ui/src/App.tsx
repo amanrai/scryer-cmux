@@ -210,7 +210,6 @@ export function App() {
       '.quick-input-modal',
       '.command-input-modal',
       '.command-context',
-      '.terminal-accessory',
       '.palette',
       '.workspace-list',
     ].join(',');

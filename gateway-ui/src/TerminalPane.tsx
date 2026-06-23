@@ -836,14 +836,6 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
           />
         </>
       ) : null}
-      <div className="terminal-accessory" aria-label="Terminal shortcuts">
-        <button onClick={() => send('\x1b')}>Esc</button>
-        <button onClick={() => send('\t')}>Tab</button>
-        <button onClick={() => send('\x03')}>Ctrl-C</button>
-        <button onClick={() => send('\r')}>Enter</button>
-        <button onClick={() => send('[A')}>↑</button>
-        <button onClick={() => send('[B')}>↓</button>
-      </div>
     </div>
   );
 }

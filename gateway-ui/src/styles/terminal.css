@@ -134,7 +134,7 @@
 .pane-action i { font-size: 13px; }
 .pane-action-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--line-hi); flex: 0 0 auto; }
 
-.terminal-wrap { position: relative; min-height: 0; overflow: hidden; overscroll-behavior: none; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: var(--void); }
+.terminal-wrap { position: relative; min-height: 0; overflow: hidden; overscroll-behavior: none; display: grid; grid-template-rows: minmax(0, 1fr); background: var(--void); }
 .modal-touch-guard { position: fixed; inset: 0; z-index: 70; touch-action: none; background: rgba(0, 0, 0, 0.10); }
 .drop-overlay {
   position: absolute;
@@ -518,18 +518,4 @@
   .interaction-pane-titlebar p { font-size: 12.5px; }
   .interaction-custom-input { min-height: 110px; max-height: 24vh; }
 }
-.terminal-accessory { display: none; gap: 6px; padding: 7px 8px; border-top: 1px solid var(--line); background: var(--surface); overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.terminal-accessory button {
-  min-width: 52px;
-  min-height: 40px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text-2);
-  background: var(--raised);
-  border: 1px solid var(--line-hi);
-  border-radius: var(--radius-sm);
-  transition: background 0.1s ease, color 0.1s ease;
-}
-.terminal-accessory button:active { background: var(--raised-hi); color: var(--text); }
 
