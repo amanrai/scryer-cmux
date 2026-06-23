@@ -197,7 +197,8 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.rename-input {
+.rename-input,
+.settings-select {
   width: 100%;
   height: 42px;
   padding: 0 13px;
@@ -207,6 +208,7 @@
   border-radius: var(--radius-sm);
   font-size: 14.5px;
 }
+.settings-select { appearance: auto; }
 .command-context-shell {
   overflow: hidden;
   background: var(--void);
@@ -265,6 +267,7 @@
   line-height: 1.5;
 }
 .rename-input:focus-visible,
+.settings-select:focus-visible,
 .command-input-textarea:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .ghost-button {

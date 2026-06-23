@@ -38,6 +38,7 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
   const [ptyMessage, setPtyMessage] = useState('');
   const [ptyBusy, setPtyBusy] = useState(false);
   const [backends, setBackends] = useState<BackendMachine[]>([]);
+  const [selectedBackendId, setSelectedBackendId] = useState('');
   const [gatewayMessage, setGatewayMessage] = useState('');
   const [gatewayBusy, setGatewayBusy] = useState(false);
   const groups = useMemo(() => ['OS', 'Machine'].map((group) => ({
@@ -99,7 +100,9 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
       const response = await fetch(`${API_BASE}/api/backends`);
       if (!response.ok) throw new Error(`Gateway registry unavailable (${response.status})`);
       const payload = await response.json() as { backends?: BackendMachine[] };
-      setBackends((payload.backends ?? []).filter((backend) => backend.kind === 'pty' && backend.status === 'online'));
+      const reachable = (payload.backends ?? []).filter((backend) => backend.kind === 'pty' && backend.status === 'online');
+      setBackends(reachable);
+      setSelectedBackendId((current) => current || reachable[0]?.id || '');
     } catch (error) {
       setGatewayMessage(error instanceof Error ? error.message : 'Could not load gateway registry');
     } finally {
@@ -109,7 +112,7 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
 
   useEffect(() => {
     if (page === 'pty' && !ptyPayload && !ptyBusy) void loadPtyConfig();
-    if (page === 'gateway') void loadBackends();
+    if (page === 'machine' || page === 'gateway') void loadBackends();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
@@ -165,6 +168,18 @@ export function SettingsModal({ hostName, defaultHostName, selectedMachineIcons,
             <div className="settings-page-heading">
               <h3>Machine customization</h3>
               <p>Customize <strong>{defaultHostName}</strong>. This is local to this browser.</p>
+            </div>
+            <div className="machine-name-row">
+              <label className="field-label" htmlFor="reachable-backend">Reachable backend</label>
+              <select
+                id="reachable-backend"
+                className="settings-select"
+                value={selectedBackendId}
+                onChange={(event) => setSelectedBackendId(event.target.value)}
+              >
+                {backends.map((backend) => <option key={backend.id} value={backend.id}>{backend.label} · {backend.id}</option>)}
+                {!backends.length ? <option value="">No reachable PTY backends</option> : null}
+              </select>
             </div>
             <div className="machine-name-row">
               <label className="field-label" htmlFor="machine-display-name">Display name</label>
