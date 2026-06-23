@@ -115,6 +115,7 @@ export class SessionManager {
       message: `server pty session on ${os.hostname()}`,
     });
     if (session.replay) this.send(ws, { type: 'output', data: session.replay, replay: true });
+    if (session.activeInteractionRequest) this.send(ws, { type: 'interaction', request: session.activeInteractionRequest });
 
     ws.on('message', (raw) => this.#handleMessage(session, ws, raw));
     ws.on('close', () => session.clients.delete(ws));
@@ -129,7 +130,7 @@ export class SessionManager {
       env: buildPtyEnv(paneId),
     });
 
-    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null, lastUpdateSince: '', altScreen: false };
+    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null, activeInteractionRequest: null, lastUpdateSince: '', altScreen: false };
     term.onData((data) => this.#broadcastData(session, data));
     term.onExit(({ exitCode, signal }) => this.#handleExit(session, exitCode, signal));
     this.#sessions.set(paneId, session);
@@ -174,10 +175,14 @@ export class SessionManager {
         const request = Array.isArray(data.requests) ? data.requests[0] : null;
         if (request && request.id !== session.activeInteractionId) {
           session.activeInteractionId = request.id;
+          session.activeInteractionRequest = request;
           for (const ws of session.clients) this.send(ws, { type: 'interaction', request });
+        } else if (request) {
+          session.activeInteractionRequest = request;
         } else if (!request && session.activeInteractionId) {
           const requestId = session.activeInteractionId;
           session.activeInteractionId = null;
+          session.activeInteractionRequest = null;
           for (const ws of session.clients) this.send(ws, { type: 'interaction_clear', requestId });
         }
       } catch {}
@@ -244,6 +249,7 @@ export class SessionManager {
       });
       if (res.ok) {
         session.activeInteractionId = null;
+        session.activeInteractionRequest = null;
         for (const ws of session.clients) this.send(ws, { type: 'interaction_clear', requestId: request.id });
       }
     } catch {}
