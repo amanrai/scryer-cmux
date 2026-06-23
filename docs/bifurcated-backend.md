@@ -121,6 +121,8 @@ npm run dev:gateway
 npm run dev:ui
 ```
 
+Settings → PTY configures the local PTY server with a gateway URL and registers it. Settings → Gateway lists machines registered with the gateway that the frontend is currently using.
+
 If running pieces separately and using the UI against the gateway, start Vite with:
 
 ```bash
@@ -143,8 +145,9 @@ The fresh split must preserve current scryer-cmux behavior while introducing bac
 
 ## Known gaps / next steps
 
-- Backend registry is static/env-based; no PTY self-registration or heartbeat yet.
-- Gateway health status is not cached in `/api/backends`; `/api/backends/:id/health` proxies live.
+- Gateway registry now supports dynamic PTY registration through `POST /api/backends/register`, `POST /api/backends/:id/heartbeat`, and persisted `.amux-gateway-backends.json` state.
+- PTY servers expose `/api/pty-config` and `/api/pty-config/register` so the settings UI can save a gateway URL, machine identity, public PTY URL, and start heartbeat registration.
+- Gateway health status for registered machines is based on heartbeat freshness; `/api/backends/:id/health` still proxies live to the PTY backend.
 - Uploads are compatibility-proxied to the PTY backend so paths remain local to the PTY machine; this is correct for the split, but remote/tunnel deployments need validation.
 - Frontend still uses the old global `API_BASE`/`WS_BASE`; it can target the gateway through the existing port env, but it is not yet backend-ID-aware.
 - No public-internet auth is implemented; this is a tailnet-only prototype.

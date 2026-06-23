@@ -37,3 +37,37 @@ export type WorkspaceMenuState = {
   x: number;
   y: number;
 };
+
+export type BackendMachine = {
+  id: string;
+  label: string;
+  kind: string;
+  baseUrl?: string;
+  transport?: string;
+  capabilities?: string[];
+  status?: 'online' | 'stale' | 'offline' | 'unknown';
+  lastSeenAt?: string;
+  registeredAt?: string;
+  source?: string;
+  hostInfo?: Record<string, unknown>;
+};
+
+export type PtyGatewayConfig = {
+  gatewayUrl: string;
+  machineId: string;
+  machineName: string;
+  publicUrl: string;
+  heartbeatEnabled: boolean;
+  heartbeatMs: number;
+};
+
+export type PtyConfigPayload = {
+  config: PtyGatewayConfig;
+  status?: {
+    registered?: boolean;
+    lastSuccessAt?: string;
+    lastAttemptAt?: string;
+    lastError?: string;
+    gatewayResponse?: BackendMachine;
+  };
+};

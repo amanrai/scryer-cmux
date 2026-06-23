@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws';
 import { port, pmUrl } from './config.mjs';
 import { getDisplayHostName } from './host-name.mjs';
 import { corsHeaders, json, readTextBody } from './http-utils.mjs';
+import { getConfigPayload, registerWithGateway, saveConfig, startGatewayRegistration } from './gateway-registration.mjs';
 import { handleUpload } from './uploads.mjs';
 import { paneIdsFromState, loadState, sanitizeState, saveState } from './state-store.mjs';
 import { makeId } from './ids.mjs';
@@ -83,6 +84,31 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/pty-config') {
+    json(res, 200, getConfigPayload());
+    return;
+  }
+
+  if (req.method === 'PUT' && url.pathname === '/api/pty-config') {
+    try {
+      json(res, 200, saveConfig(JSON.parse(await readTextBody(req))));
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : 'invalid config' });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/pty-config/register') {
+    try {
+      const body = await readTextBody(req);
+      if (body.trim()) saveConfig(JSON.parse(body));
+      json(res, 200, await registerWithGateway());
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : 'registration failed', ...getConfigPayload() });
+    }
+    return;
+  }
+
   if ((req.method === 'PUT' || req.method === 'POST') && url.pathname === '/api/state') {
     await handleStateWrite(req, res);
     return;
@@ -133,4 +159,5 @@ wss.on('connection', (ws, req) => {
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`amux pty server listening on http://0.0.0.0:${port}`);
+  startGatewayRegistration();
 });

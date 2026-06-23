@@ -6,3 +6,5 @@ dist/
 .env.local
 .smux-state.json
 .smux-state.json.tmp
+.amux-gateway-backends.json
+.amux-pty-config.json

@@ -1,24 +1,35 @@
 import { createServer } from 'node:http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { loadBackends, port } from './config.mjs';
+import { createRegistry } from './registry-store.mjs';
 import { corsHeaders, json, readBody } from './http-utils.mjs';
 
-let backends = loadBackends();
+const registry = createRegistry(loadBackends());
 
 function backendListPayload() {
-  return backends.map((backend) => ({
+  return registry.list().map((backend) => ({
     id: backend.id,
     label: backend.label,
     kind: backend.kind,
+    baseUrl: backend.baseUrl,
     transport: backend.transport,
     capabilities: backend.capabilities,
-    status: 'unknown',
+    status: backend.status,
     hostInfo: backend.hostInfo,
+    registeredAt: backend.registeredAt,
+    lastSeenAt: backend.lastSeenAt,
+    source: backend.source,
   }));
 }
 
 function findBackend(id = 'local') {
-  return backends.find((backend) => backend.id === id);
+  return registry.find(id);
+}
+
+async function readJson(req) {
+  const body = await readBody(req);
+  if (!body.length) return {};
+  return JSON.parse(body.toString('utf8'));
 }
 
 function backendWsUrl(backend, pathAndSearch) {
@@ -72,6 +83,33 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/backends/register') {
+    try {
+      const backend = registry.register(await readJson(req));
+      json(res, 200, { ok: true, backend });
+    } catch (error) {
+      json(res, 400, { error: error instanceof Error ? error.message : 'invalid registration' });
+    }
+    return;
+  }
+
+  const heartbeatMatch = url.pathname.match(/^\/api\/backends\/([^/]+)\/heartbeat$/);
+  if (req.method === 'POST' && heartbeatMatch) {
+    try {
+      const backend = registry.heartbeat(decodeURIComponent(heartbeatMatch[1]), await readJson(req));
+      json(res, 200, { ok: true, backend });
+    } catch (error) {
+      json(res, 404, { error: error instanceof Error ? error.message : 'backend not found' });
+    }
+    return;
+  }
+
+  const deleteBackendMatch = url.pathname.match(/^\/api\/backends\/([^/]+)$/);
+  if (req.method === 'DELETE' && deleteBackendMatch) {
+    json(res, registry.remove(decodeURIComponent(deleteBackendMatch[1])) ? 200 : 404, { ok: true });
+    return;
+  }
+
   const healthMatch = url.pathname.match(/^\/api\/backends\/([^/]+)\/health$/);
   if (req.method === 'GET' && healthMatch) {
     const backend = findBackend(decodeURIComponent(healthMatch[1]));
@@ -89,8 +127,8 @@ const server = createServer(async (req, res) => {
   }
 
   // Compatibility routes: preserve the existing frontend contract by routing to the local backend.
-  const local = findBackend('local') ?? backends[0];
-  if (local && (url.pathname === '/api/state' || url.pathname === '/api/upload' || url.pathname.startsWith('/api/pm/') || url.pathname.startsWith('/api/sessions/'))) {
+  const local = findBackend('local') ?? registry.list()[0];
+  if (local && (url.pathname === '/api/state' || url.pathname === '/api/upload' || url.pathname === '/api/pty-config' || url.pathname === '/api/pty-config/register' || url.pathname.startsWith('/api/pm/') || url.pathname.startsWith('/api/sessions/'))) {
     await proxyHttp(req, res, local, `${url.pathname}${url.search}`);
     return;
   }
@@ -134,7 +172,7 @@ server.on('upgrade', (req, socket, head) => {
     backend = findBackend(decodeURIComponent(match[1]));
     upstreamPath = new URL(`/api/terminal${url.search}`, 'http://placeholder');
   } else if (url.pathname === '/api/terminal') {
-    backend = findBackend('local') ?? backends[0];
+    backend = findBackend('local') ?? registry.list()[0];
     upstreamPath = new URL(`/api/terminal${url.search}`, 'http://placeholder');
   }
 
@@ -149,5 +187,5 @@ server.on('upgrade', (req, socket, head) => {
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`amux gateway listening on http://0.0.0.0:${port}`);
-  console.log(`registered backends: ${backends.map((backend) => `${backend.id}=${backend.baseUrl}`).join(', ') || 'none'}`);
+  console.log(`registered backends: ${registry.list().map((backend) => `${backend.id}=${backend.baseUrl}`).join(', ') || 'none'}`);
 });

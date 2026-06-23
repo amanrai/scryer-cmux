@@ -1,3 +1,9 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export const repoRoot = path.resolve(__dirname, '..');
 export const port = Number(process.env.AMUX_GATEWAY_PORT ?? process.env.SCRYER_AMUX_GATEWAY_PORT ?? 43223);
 
 const defaultBackends = [
