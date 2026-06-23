@@ -19,7 +19,7 @@ export function makeWorkspace(index: number): WorkspaceModel {
   const pane = makePane(1);
   return {
     id: makeId('workspace'),
-    name: index === 1 ? 'smux' : `workspace ${index}`,
+    name: `W${index}`,
     color: workspaceColors[(index - 1) % workspaceColors.length].value,
     layout: 'row',
     panes: [pane],
