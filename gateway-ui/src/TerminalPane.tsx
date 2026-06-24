@@ -408,15 +408,25 @@ function ActivityPaneModal({ updates, onClose, onDismissUpdate, onDismissAll }: 
   );
 }
 
-function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
+function InteractionPaneModal({ request, updates, onClose, onDismiss, onRespond }: {
   request: InteractionRequest;
+  updates: SessionUpdate[];
   onClose: () => void;
   onDismiss: () => void;
   onRespond: (response: Record<string, unknown>) => void;
 }) {
   const [custom, setCustom] = useState(false);
   const [draft, setDraft] = useState('');
+  const [visibleUpdateCount, setVisibleUpdateCount] = useState(2);
   const choices = request.payload.choices?.length ? request.payload.choices : [{ id: 'custom', label: 'Type response…', custom: true }];
+  const visibleUpdates = updates.slice(-visibleUpdateCount);
+  const olderUpdateCount = Math.max(0, updates.length - visibleUpdates.length);
+
+  useEffect(() => {
+    setVisibleUpdateCount(2);
+    setCustom(false);
+    setDraft('');
+  }, [request.id]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -433,6 +443,29 @@ function InteractionPaneModal({ request, onClose, onDismiss, onRespond }: {
         <button type="button" className="interaction-close" title="Close locally" onClick={onClose}>
           <i className="fa-solid fa-xmark" aria-hidden="true" />
         </button>
+      </div>
+      <div className="interaction-context-updates" aria-label="Recent semantic updates">
+        {olderUpdateCount > 0 ? (
+          <button type="button" className="interaction-earlier-button" onClick={() => setVisibleUpdateCount((count) => Math.min(updates.length, count + 5))}>
+            <i className="fa-solid fa-clock-rotate-left" aria-hidden="true" /> Earlier… <span>{olderUpdateCount} older</span>
+          </button>
+        ) : null}
+        {visibleUpdates.length ? (
+          <div className="interaction-context-list">
+            {visibleUpdates.map((update) => (
+              <article key={update.id} className={`activity-update interaction-context-update level-${update.level ?? 'info'} kind-${update.kind}`}>
+                <div className="activity-update-meta">
+                  <span>{formatUpdateTime(update)}</span>
+                  <span>{update.kind}</span>
+                </div>
+                <h3>{update.title}</h3>
+                <p>{update.body}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="interaction-context-empty">No semantic updates for this pane yet.</div>
+        )}
       </div>
       <div className="interaction-pane-titlebar">
         <h3>{request.payload.title ?? 'Input needed'}</h3>
@@ -808,6 +841,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
           <div className="modal-touch-guard" aria-hidden="true" />
           <InteractionPaneModal
             request={interaction}
+            updates={updates}
             onClose={() => setInteractionVisible(false)}
             onDismiss={() => respondToInteraction({ kind: 'dismiss' })}
             onRespond={respondToInteraction}

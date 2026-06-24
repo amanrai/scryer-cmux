@@ -188,6 +188,7 @@
   animation: pop-center 0.14s ease;
 }
 .interaction-pane-modal.composing { max-height: calc(100dvh - 16px); }
+.interaction-pane-modal { overflow: auto; align-content: start; }
 .interaction-pane-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .interaction-eyebrow {
   display: inline-flex;
@@ -203,6 +204,27 @@
 .interaction-eyebrow i { font-size: 13px; }
 .interaction-pane-titlebar h3 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
 .interaction-pane-titlebar p { margin: 6px 0 0; color: var(--text-2); font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; }
+.interaction-context-updates { display: grid; gap: 8px; }
+.interaction-context-list { display: grid; gap: 8px; }
+.interaction-context-update { padding: 10px 11px; }
+.interaction-context-update h3 { font-size: 13px; }
+.interaction-context-update p { font-size: 12.5px; }
+.interaction-earlier-button {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--raised) 62%, transparent);
+  border: 1px dashed var(--line-hi);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+.interaction-earlier-button:hover { color: var(--text); border-color: var(--accent-line); background: var(--raised-hi); }
+.interaction-earlier-button span { color: var(--faint); font-size: 11px; font-weight: 500; }
+.interaction-context-empty { color: var(--muted); font-size: 12.5px; }
 .interaction-close { width: 34px; height: 34px; display: grid; place-items: center; color: var(--muted); border-radius: var(--radius-sm); transition: color 0.12s ease, background 0.12s ease; }
 .interaction-close:hover { color: var(--text); background: var(--raised-hi); }
 .interaction-choice-list { display: grid; gap: 8px; }
