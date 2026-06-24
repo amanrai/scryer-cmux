@@ -6,6 +6,16 @@ const interactionsUrl = (process.env.SCRYER_INTERACTIONS_URL || 'http://100.105.
 const producerMarkerRe = /@@SCRYER_INTERACTION_PRODUCER_V1@@(\{[^@]*\})@@END_SCRYER_INTERACTION_PRODUCER@@/g;
 const interactionPollMs = Number(process.env.SCRYER_INTERACTIONS_POLL_MS || 1500);
 
+function interactionTime(request) {
+  const ts = Date.parse(request?.receivedAt ?? request?.createdAt ?? request?.updatedAt ?? '');
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function latestInteractionRequest(requests) {
+  if (!Array.isArray(requests) || !requests.length) return null;
+  return [...requests].sort((a, b) => interactionTime(a) - interactionTime(b) || String(a?.id ?? '').localeCompare(String(b?.id ?? ''))).at(-1) ?? null;
+}
+
 function normalizeTerminalText(text) {
   return String(text)
     // OSC sequences, including hyperlink resets.
@@ -130,7 +140,7 @@ export class SessionManager {
       env: buildPtyEnv(paneId),
     });
 
-    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null, activeInteractionRequest: null, lastUpdateSince: '', altScreen: false };
+    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null, activeInteractionRequest: null, lastInteractionAvailableId: null, lastInteractionShownId: null, lastUpdateSince: '', altScreen: false };
     term.onData((data) => this.#broadcastData(session, data));
     term.onExit(({ exitCode, signal }) => this.#handleExit(session, exitCode, signal));
     this.#sessions.set(paneId, session);
@@ -172,12 +182,16 @@ export class SessionManager {
         const res = await fetch(`${interactionsUrl}/api/requests/active?from=${encodeURIComponent(from)}`);
         if (!res.ok) continue;
         const data = await res.json();
-        const request = Array.isArray(data.requests) ? data.requests[0] : null;
-        if (request && request.id !== session.activeInteractionId) {
+        const activeRequests = Array.isArray(data.requests) ? data.requests : [];
+        const request = latestInteractionRequest(activeRequests);
+        session.lastInteractionAvailableId = request?.id ?? null;
+        if (request && request.id !== session.lastInteractionShownId) {
           session.activeInteractionId = request.id;
           session.activeInteractionRequest = request;
-          for (const ws of session.clients) this.send(ws, { type: 'interaction', request });
+          session.lastInteractionShownId = request.id;
+          for (const ws of session.clients) this.send(ws, { type: 'interaction', request, availableRequestCount: activeRequests.length });
         } else if (request) {
+          session.activeInteractionId = request.id;
           session.activeInteractionRequest = request;
         } else if (!request && session.activeInteractionId) {
           const requestId = session.activeInteractionId;

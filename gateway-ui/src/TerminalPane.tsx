@@ -348,6 +348,15 @@ function ScryerPickerModal({ backendId, onClose, onSend }: { backendId?: string;
   );
 }
 
+function updateSortTime(update: SessionUpdate) {
+  const time = Date.parse(update.receivedAt ?? update.createdAt ?? '');
+  return Number.isFinite(time) ? time : 0;
+}
+
+function compareUpdatesOldestFirst(a: SessionUpdate, b: SessionUpdate) {
+  return updateSortTime(a) - updateSortTime(b) || String(a.id).localeCompare(String(b.id));
+}
+
 function formatUpdateTime(update: SessionUpdate) {
   const raw = update.receivedAt ?? update.createdAt;
   if (!raw) return '';
@@ -419,8 +428,9 @@ function InteractionPaneModal({ request, updates, onClose, onDismiss, onRespond 
   const [draft, setDraft] = useState('');
   const [visibleUpdateCount, setVisibleUpdateCount] = useState(2);
   const choices = request.payload.choices?.length ? request.payload.choices : [{ id: 'custom', label: 'Type response…', custom: true }];
-  const visibleUpdates = updates.slice(-visibleUpdateCount);
-  const olderUpdateCount = Math.max(0, updates.length - visibleUpdates.length);
+  const chronologicalUpdates = [...updates].sort(compareUpdatesOldestFirst);
+  const visibleUpdates = chronologicalUpdates.slice(-visibleUpdateCount);
+  const olderUpdateCount = Math.max(0, chronologicalUpdates.length - visibleUpdates.length);
 
   useEffect(() => {
     setVisibleUpdateCount(2);
@@ -446,7 +456,7 @@ function InteractionPaneModal({ request, updates, onClose, onDismiss, onRespond 
       </div>
       <div className="interaction-context-updates" aria-label="Recent semantic updates">
         {olderUpdateCount > 0 ? (
-          <button type="button" className="interaction-earlier-button" onClick={() => setVisibleUpdateCount((count) => Math.min(updates.length, count + 5))}>
+          <button type="button" className="interaction-earlier-button" onClick={() => setVisibleUpdateCount((count) => Math.min(chronologicalUpdates.length, count + 5))}>
             <i className="fa-solid fa-clock-rotate-left" aria-hidden="true" /> Earlier… <span>{olderUpdateCount} older</span>
           </button>
         ) : null}
@@ -617,7 +627,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
         setUpdates((current) => {
           const byId = new Map(current.map((update) => [update.id, update]));
           for (const update of incoming) byId.set(update.id, update);
-          const next = Array.from(byId.values()).sort((a, b) => String(a.receivedAt ?? a.createdAt ?? '').localeCompare(String(b.receivedAt ?? b.createdAt ?? ''))).slice(-100);
+          const next = Array.from(byId.values()).sort(compareUpdatesOldestFirst).slice(-100);
           seenUpdateIdsRef.current = new Set(next.map((update) => update.id));
           return next;
         });
