@@ -794,6 +794,18 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
     if (paths.length > 0) send(`${paths.join(' ')} `);
   }
 
+  function onPaste(event: React.ClipboardEvent) {
+    const text = event.clipboardData.getData('text/plain');
+    if (!text || !/[\r\n]/.test(text)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const normalized = text.replace(/\r\n?/g, '\n');
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'paste', text: `\x1b[200~${normalized}\x1b[201~`, paneId }));
+    }
+  }
+
   function onTouchStart(event: React.TouchEvent) {
     if (event.touches.length !== 1) return;
     const touch = event.touches[0];
@@ -836,6 +848,7 @@ export function TerminalPane({ paneId, active, accentColor, themeName, fontSize,
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
+      onPasteCapture={onPaste}
     >
       <div
         ref={hostRef}
