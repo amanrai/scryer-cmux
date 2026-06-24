@@ -123,6 +123,8 @@ export class SessionManager {
       replayed: Boolean(session.replay),
       interactionProducer: session.producer ?? null,
       message: `server pty session on ${os.hostname()}`,
+      cols: session.cols,
+      rows: session.rows,
     });
     if (session.replay) this.send(ws, { type: 'output', data: session.replay, replay: true });
     if (session.activeInteractionRequest) this.send(ws, { type: 'interaction', request: session.activeInteractionRequest });
@@ -140,7 +142,7 @@ export class SessionManager {
       env: buildPtyEnv(paneId),
     });
 
-    const session = { paneId, term, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null, activeInteractionRequest: null, lastInteractionAvailableId: null, lastInteractionShownId: null, lastUpdateSince: '', altScreen: false };
+    const session = { paneId, term, cols: 120, rows: 30, clients: new Set(), replay: '', exited: false, producer: this.producerByPane.get(paneId), activeInteractionId: null, activeInteractionRequest: null, lastInteractionAvailableId: null, lastInteractionShownId: null, lastUpdateSince: '', altScreen: false };
     term.onData((data) => this.#broadcastData(session, data));
     term.onExit(({ exitCode, signal }) => this.#handleExit(session, exitCode, signal));
     this.#sessions.set(paneId, session);
@@ -273,7 +275,10 @@ export class SessionManager {
     const cols = Number(msg.cols);
     const rows = Number(msg.rows);
     if (Number.isFinite(cols) && Number.isFinite(rows) && cols > 0 && rows > 0) {
-      session.term.resize(Math.floor(cols), Math.floor(rows));
+      session.cols = Math.floor(cols);
+      session.rows = Math.floor(rows);
+      session.term.resize(session.cols, session.rows);
+      for (const ws of session.clients) this.send(ws, { type: 'status', status: 'resized', paneId: session.paneId, cols: session.cols, rows: session.rows });
     }
   }
 }

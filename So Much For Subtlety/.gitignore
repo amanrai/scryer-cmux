@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+DerivedData/
+
+# Vendored libghostty-vt build outputs (produced by Vendor/libghostty-vt/build.sh)
+Vendor/libghostty-vt/.build-ghostty/
+Vendor/libghostty-vt/include/ghostty/
+Vendor/libghostty-vt/lib/libghostty-vt.a

@@ -1,0 +1,68 @@
+import SwiftUI
+import AppKit
+
+/// A bare SwiftPM executable launches as a background accessory (no bundle), so its
+/// window never comes forward. Promote it to a regular foreground app at launch.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+}
+
+@main
+struct SoMuchForSubtletyApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var model = AppModel()
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environment(model)
+                .frame(minWidth: 720, minHeight: 480)
+        }
+        .windowStyle(.hiddenTitleBar)
+    }
+}
+
+struct RootView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Group {
+            switch model.phase {
+            case .disconnected:
+                GatewayConnectView()
+            case .loadingBackends, .picking:
+                BackendPickerView()
+            case .attached(let backend):
+                AttachedView(backend: backend).id(backend.id)
+            }
+        }
+        .background(WindowAccessor { window in
+            // Extend content under the title bar so our top bar shares the row with the
+            // traffic lights (cmux-style).
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.styleMask.insert(.fullSizeContentView)
+            window.isMovableByWindowBackground = true
+        })
+    }
+}
+
+/// Reaches the hosting `NSWindow` to apply native window configuration.
+struct WindowAccessor: NSViewRepresentable {
+    let configure: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { if let window = view.window { configure(window) } }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { if let window = nsView.window { configure(window) } }
+    }
+}
