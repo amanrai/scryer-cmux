@@ -12,3 +12,8 @@ dist/
 # Xcode user state
 *.xcuserstate
 xcuserdata/
+
+# SwiftPM / libghostty-vt build artifacts (the vendored GhosttyVT.xcframework IS committed)
+.build/
+.build-ghostty/
+.xcframework-build/

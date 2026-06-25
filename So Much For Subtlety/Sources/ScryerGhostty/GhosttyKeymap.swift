@@ -1,13 +1,68 @@
-#if canImport(AppKit)
-import AppKit
 import CGhosttyVT
 import ScryerCore
 
-/// Maps an AppKit `NSEvent` to a platform-neutral `KeyEvent` that the engine's key
-/// encoder turns into VT bytes. Hybrid mapping: special keys by macOS virtual keycode,
-/// printable keys by their unmodified character.
+#if os(macOS)
+import AppKit
+#endif
+
+/// Builds platform-neutral `KeyEvent`s for the engine's key encoder, which turns them
+/// into VT bytes honoring terminal modes (application cursor keys, etc.).
 public enum GhosttyKeymap {
-    /// Returns nil for events that shouldn't reach the PTY (e.g. ⌘ shortcuts).
+
+    // MARK: Cross-platform builders (used by the UIKit layer)
+
+    /// A run of typed text (e.g. from a soft keyboard's insertText), optionally with
+    /// modifiers (e.g. control for ⌃-combos). The encoder turns ⌃+letter into its
+    /// control byte.
+    public static func keyEvent(text: String, modifiers: KeyModifiers = []) -> KeyEvent {
+        let unshifted = text.unicodeScalars.first.map {
+            Character($0).lowercased().unicodeScalars.first?.value ?? $0.value
+        } ?? 0
+        return KeyEvent(
+            action: .press,
+            modifiers: modifiers,
+            ghosttyKeyCode: GHOSTTY_KEY_UNIDENTIFIED.rawValue,
+            text: text,
+            unshiftedCodepoint: unshifted
+        )
+    }
+
+    /// A platform-neutral special key (+ modifiers), mapped to a libghostty key code.
+    public static func keyEvent(special: TerminalKey, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent(
+            action: .press,
+            modifiers: modifiers,
+            ghosttyKeyCode: ghosttyKey(for: special).rawValue,
+            text: nil,
+            unshiftedCodepoint: 0
+        )
+    }
+
+    private static func ghosttyKey(for key: TerminalKey) -> GhosttyKey {
+        switch key {
+        case .enter:      return GHOSTTY_KEY_ENTER
+        case .backspace:  return GHOSTTY_KEY_BACKSPACE
+        case .tab:        return GHOSTTY_KEY_TAB
+        case .escape:     return GHOSTTY_KEY_ESCAPE
+        case .delete:     return GHOSTTY_KEY_DELETE
+        case .space:      return GHOSTTY_KEY_SPACE
+        case .arrowUp:    return GHOSTTY_KEY_ARROW_UP
+        case .arrowDown:  return GHOSTTY_KEY_ARROW_DOWN
+        case .arrowLeft:  return GHOSTTY_KEY_ARROW_LEFT
+        case .arrowRight: return GHOSTTY_KEY_ARROW_RIGHT
+        case .home:       return GHOSTTY_KEY_HOME
+        case .end:        return GHOSTTY_KEY_END
+        case .pageUp:     return GHOSTTY_KEY_PAGE_UP
+        case .pageDown:   return GHOSTTY_KEY_PAGE_DOWN
+        }
+    }
+
+    #if os(macOS)
+    // MARK: AppKit mapper
+
+    /// Maps an AppKit `NSEvent` to a `KeyEvent`. Returns nil for events that shouldn't
+    /// reach the PTY (e.g. ⌘ shortcuts). Hybrid mapping: special keys by macOS virtual
+    /// keycode, printable keys by their unmodified character.
     public static func keyEvent(from event: NSEvent) -> KeyEvent? {
         let flags = event.modifierFlags
         var mods: KeyModifiers = []
@@ -81,5 +136,5 @@ public enum GhosttyKeymap {
     private static func offset(_ base: GhosttyKey, _ delta: UInt32) -> GhosttyKey {
         GhosttyKey(rawValue: base.rawValue + delta)
     }
+    #endif
 }
-#endif

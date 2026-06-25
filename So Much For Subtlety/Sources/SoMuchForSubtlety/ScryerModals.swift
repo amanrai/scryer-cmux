@@ -17,8 +17,6 @@ struct InteractionModalView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            modalHeader("Interaction", systemImage: "bubble.left.and.bubble.right") { dismiss() }
-            Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     if !recentUpdates.isEmpty {
@@ -73,12 +71,12 @@ struct InteractionModalView: View {
             }
             Divider()
             HStack {
-                Button("Dismiss") { onDismissRequest(); dismiss() }.foregroundStyle(.secondary)
+                Button("Dismiss", role: .destructive) { onDismissRequest(); dismiss() }
                 Spacer()
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
         }
-        .frame(width: 440, height: 460)
+        .modalChrome("Interaction", systemImage: "bubble.left.and.bubble.right", width: 440, height: 460)
     }
 }
 
@@ -88,14 +86,12 @@ struct ActivityModalView: View {
     @Environment(\.dismiss) private var dismiss
     let updates: [SessionUpdate]
 
+    // Read-only feed: no dismiss controls, just the close button.
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            modalHeader("Agent Activity", systemImage: "list.bullet.rectangle") { dismiss() }
-            Divider()
+        Group {
             if updates.isEmpty {
-                Spacer()
-                Text("No updates yet.").font(.system(size: 12)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
-                Spacer()
+                ContentUnavailableView("No updates yet", systemImage: "list.bullet.rectangle",
+                                       description: Text("Agent activity will show up here."))
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
@@ -105,7 +101,8 @@ struct ActivityModalView: View {
                 }
             }
         }
-        .frame(width: 440, height: 460)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .modalChrome("Agent Activity", systemImage: "list.bullet.rectangle", width: 440, height: 460)
     }
 }
 
@@ -126,8 +123,6 @@ struct ScryerPickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            modalHeader("Scryer Picker", systemImage: "rectangle.3.group") { dismiss() }
-            Divider()
             if let error { Text(error).font(.system(size: 11)).foregroundStyle(.red).padding(12) }
             HStack(spacing: 0) {
                 column(title: "Projects") {
@@ -162,7 +157,7 @@ struct ScryerPickerView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
         }
-        .frame(width: 620, height: 460)
+        .modalChrome("Scryer Picker", systemImage: "rectangle.3.group", width: 620, height: 460)
         .task { await loadProjects() }
     }
 
@@ -215,11 +210,16 @@ private func modalHeader(_ title: String, systemImage: String, onClose: @escapin
 }
 
 @ViewBuilder
-private func updateRow(_ update: SessionUpdate) -> some View {
+private func updateRow(_ update: SessionUpdate, onDismiss: (() -> Void)? = nil) -> some View {
     VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
             Circle().fill(levelColor(update.level)).frame(width: 6, height: 6)
             Text(update.kind).font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+            Spacer()
+            if let onDismiss {
+                Button(action: onDismiss) { Image(systemName: "xmark").font(.system(size: 9, weight: .semibold)) }
+                    .buttonStyle(.plain).foregroundStyle(.tertiary).help("Dismiss update")
+            }
         }
         Text(update.title).font(.system(size: 12, weight: .medium))
         if !update.body.isEmpty { Text(update.body).font(.system(size: 11)).foregroundStyle(.secondary) }
@@ -235,5 +235,46 @@ private func levelColor(_ level: String?) -> Color {
     case "warning": return .yellow
     case "error": return .red
     default: return .blue
+    }
+}
+
+extension View {
+    /// Wraps modal content in platform-native chrome: a `NavigationStack` with an inline
+    /// title + a Done button and native sheet detents on iOS; the custom title bar +
+    /// fixed window size on macOS.
+    func modalChrome(_ title: String, systemImage: String = "rectangle", width: CGFloat, height: CGFloat) -> some View {
+        modifier(ModalChrome(title: title, systemImage: systemImage, width: width, height: height))
+    }
+}
+
+private struct ModalChrome: ViewModifier {
+    let title: String
+    let systemImage: String
+    let width: CGFloat
+    let height: CGFloat
+    @Environment(\.dismiss) private var dismiss
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        NavigationStack {
+            content
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }.fontWeight(.semibold)
+                    }
+                }
+        }
+        .presentationDetents([.large, .medium])
+        .presentationDragIndicator(.visible)
+        #else
+        VStack(spacing: 0) {
+            modalHeader(title, systemImage: systemImage) { dismiss() }
+            Divider()
+            content
+        }
+        .frame(width: width, height: height)
+        #endif
     }
 }

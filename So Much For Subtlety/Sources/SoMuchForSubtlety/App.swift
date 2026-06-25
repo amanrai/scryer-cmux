@@ -1,6 +1,9 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
+#endif
 
+#if os(macOS)
 /// A bare SwiftPM executable launches as a background accessory (no bundle), so its
 /// window never comes forward. Promote it to a regular foreground app at launch.
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -11,19 +14,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
+#endif
 
 @main
 struct SoMuchForSubtletyApp: App {
+    #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    #endif
     @State private var model = AppModel()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(model)
+                #if os(macOS)
                 .frame(minWidth: 720, minHeight: 480)
+                #endif
         }
+        #if os(macOS)
         .windowStyle(.hiddenTitleBar)
+        #endif
     }
 }
 
@@ -41,6 +51,8 @@ struct RootView: View {
                 AttachedView(backend: backend).id(backend.id)
             }
         }
+        .preferredColorScheme(model.theme.isDark ? .dark : .light)
+        #if os(macOS)
         .background(WindowAccessor { window in
             // Extend content under the title bar so our top bar shares the row with the
             // traffic lights (cmux-style).
@@ -49,9 +61,11 @@ struct RootView: View {
             window.styleMask.insert(.fullSizeContentView)
             window.isMovableByWindowBackground = true
         })
+        #endif
     }
 }
 
+#if os(macOS)
 /// Reaches the hosting `NSWindow` to apply native window configuration.
 struct WindowAccessor: NSViewRepresentable {
     let configure: (NSWindow) -> Void
@@ -66,3 +80,4 @@ struct WindowAccessor: NSViewRepresentable {
         DispatchQueue.main.async { if let window = nsView.window { configure(window) } }
     }
 }
+#endif

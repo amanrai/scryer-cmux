@@ -24,10 +24,13 @@ public final class GhosttyVTEngine: TerminalEngine {
 
     private var cols: Int = 80
     private var rows: Int = 24
+    private var theme: TerminalTheme
 
-    public init(cols: Int = 80, rows: Int = 24, maxScrollback: Int = 10_000) {
+    public init(cols: Int = 80, rows: Int = 24, maxScrollback: Int = 10_000,
+                theme: TerminalTheme = AppTheme.oneDark.terminal) {
         self.cols = cols
         self.rows = rows
+        self.theme = theme
 
         var term: GhosttyTerminal?
         let options = GhosttyTerminalOptions(cols: UInt16(cols), rows: UInt16(rows), max_scrollback: maxScrollback)
@@ -42,19 +45,9 @@ public final class GhosttyVTEngine: TerminalEngine {
         ghostty_terminal_set(term, GHOSTTY_TERMINAL_OPT_WRITE_PTY, unsafeBitCast(Self.writePtyEffect, to: UnsafeRawPointer.self))
         ghostty_terminal_set(term, GHOSTTY_TERMINAL_OPT_TITLE_CHANGED, unsafeBitCast(Self.titleChangedEffect, to: UnsafeRawPointer.self))
 
-        // Default theme colors. Without these, the default fg/bg/cursor are unset
-        // (read back as black), making the cursor and any default-colored text
-        // invisible.
-        var defaultFg = GhosttyColorRgb(r: 0xE6, g: 0xE8, b: 0xEC)     // #E6E8EC
-        var defaultBg = GhosttyColorRgb(r: 0x22, g: 0x2B, b: 0x36)     // #222B36
-        var defaultCursor = GhosttyColorRgb(r: 0xE8, g: 0xB6, b: 0x5A) // #E8B65A
-        ghostty_terminal_set(term, GHOSTTY_TERMINAL_OPT_COLOR_FOREGROUND, &defaultFg)
-        ghostty_terminal_set(term, GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND, &defaultBg)
-        ghostty_terminal_set(term, GHOSTTY_TERMINAL_OPT_COLOR_CURSOR, &defaultCursor)
-        let palette = GhosttyVTEngine.oneDarkPalette()
-        palette.withUnsafeBufferPointer { buffer in
-            _ = ghostty_terminal_set(term, GHOSTTY_TERMINAL_OPT_COLOR_PALETTE, buffer.baseAddress)
-        }
+        // Apply the theme's fg/bg/cursor/palette. Without these the defaults read back
+        // as black (invisible cursor / default text).
+        applyColors()
 
         // Render-state handles, reused every frame.
         ghostty_render_state_new(nil, &renderState)
@@ -68,20 +61,35 @@ public final class GhosttyVTEngine: TerminalEngine {
         _ = withVtUnused() // silence unused in case of later refactors
     }
 
-    /// 256-color palette: saturated smux ANSI 0–15, standard xterm cube + grayscale
-    /// for 16–255.
-    private static func oneDarkPalette() -> [GhosttyColorRgb] {
+    /// Re-apply the current theme's colors to the live terminal (init + theme switch).
+    private func applyColors() {
+        guard let terminal else { return }
+        var fg = theme.foreground.ghostty
+        var bg = theme.background.ghostty
+        var cur = theme.cursor.ghostty
+        ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_COLOR_FOREGROUND, &fg)
+        ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_COLOR_BACKGROUND, &bg)
+        ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_COLOR_CURSOR, &cur)
+        let palette = GhosttyVTEngine.palette(ansi16: theme.ansi16)
+        palette.withUnsafeBufferPointer { buffer in
+            _ = ghostty_terminal_set(terminal, GHOSTTY_TERMINAL_OPT_COLOR_PALETTE, buffer.baseAddress)
+        }
+    }
+
+    /// Switch theme live — the next snapshot picks up the new colors.
+    public func setTheme(_ theme: TerminalTheme) {
+        self.theme = theme
+        applyColors()
+        delegate?.terminalEngineNeedsRedraw(self)
+    }
+
+    /// 256-color palette: the theme's ANSI 0–15, standard xterm cube + grayscale 16–255.
+    private static func palette(ansi16: [ThemeRGB]) -> [GhosttyColorRgb] {
         func rgb(_ r: Int, _ g: Int, _ b: Int) -> GhosttyColorRgb {
             GhosttyColorRgb(r: UInt8(r), g: UInt8(g), b: UInt8(b))
         }
         var palette = [GhosttyColorRgb](repeating: rgb(0, 0, 0), count: 256)
-        let ansi: [(Int, Int, Int)] = [
-            (0x15, 0x17, 0x1C), (0xE0, 0x69, 0x7A), (0x6F, 0xCB, 0x7F), (0xE8, 0xB6, 0x5A),
-            (0x5A, 0xA6, 0xF0), (0xB4, 0x7B, 0xE8), (0x4F, 0xC9, 0xD4), (0xAE, 0xB4, 0xC0),
-            (0x4A, 0x51, 0x5E), (0xE0, 0x69, 0x7A), (0x6F, 0xCB, 0x7F), (0xE8, 0xB6, 0x5A),
-            (0x5A, 0xA6, 0xF0), (0xB4, 0x7B, 0xE8), (0x4F, 0xC9, 0xD4), (0xE6, 0xE8, 0xEC),
-        ]
-        for (index, color) in ansi.enumerated() { palette[index] = rgb(color.0, color.1, color.2) }
+        for (index, color) in ansi16.prefix(16).enumerated() { palette[index] = color.ghostty }
         let steps = [0, 95, 135, 175, 215, 255]
         var index = 16
         for r in 0..<6 { for g in 0..<6 { for b in 0..<6 {
@@ -313,6 +321,10 @@ public final class GhosttyVTEngine: TerminalEngine {
 
 private extension GhosttyColorRgb {
     var swift: RGBColor { RGBColor(r: r, g: g, b: b) }
+}
+
+private extension ThemeRGB {
+    var ghostty: GhosttyColorRgb { GhosttyColorRgb(r: r, g: g, b: b) }
 }
 
 private extension KeyEvent.Action {

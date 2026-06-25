@@ -47,9 +47,11 @@ final class GlyphAtlas {
         // Match cmux's font chain: JetBrains Mono Nerd Font → JetBrains Mono → system mono.
         let regular = GlyphAtlas.preferredMonospaceFont(size: fontSize)
         self.regularFont = regular
-        self.boldFont = GlyphAtlas.derive(regular, traits: .boldTrait, fontSize: fontSize)
+        // Keep terminal text visually light: many prompts mark large spans as bold,
+        // but in this renderer bold should read as color emphasis, not heavier strokes.
+        self.boldFont = regular
         self.italicFont = GlyphAtlas.derive(regular, traits: .italicTrait, fontSize: fontSize)
-        self.boldItalicFont = GlyphAtlas.derive(regular, traits: [.boldTrait, .italicTrait], fontSize: fontSize)
+        self.boldItalicFont = self.italicFont
 
         let ascent = CTFontGetAscent(regular)
         let descent = CTFontGetDescent(regular)
@@ -67,7 +69,12 @@ final class GlyphAtlas {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .r8Unorm, width: atlasSize, height: atlasSize, mipmapped: false)
         descriptor.usage = .shaderRead
+        // .managed (discrete-GPU CPU/GPU sync) is macOS-only; iOS has unified memory.
+        #if os(macOS)
         descriptor.storageMode = .managed
+        #else
+        descriptor.storageMode = .shared
+        #endif
         guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
         self.texture = texture
     }

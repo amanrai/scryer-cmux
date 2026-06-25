@@ -1,0 +1,72 @@
+# XcodeGen spec for the iOS + macOS app targets.
+#
+#   brew install xcodegen        # one-time
+#   cd "So Much For Subtlety" && xcodegen generate
+#   open SoMuchForSubtlety.xcodeproj
+#
+# Both app targets share the Sources/SoMuchForSubtlety code and link the SwiftPM
+# library products (ScryerCore/ScryerGhostty/ScryerRender), which carry the
+# GhosttyVT xcframework. Pick your signing team on the iOS target in Xcode.
+name: SoMuchForSubtlety
+options:
+  bundleIdPrefix: com.scryer.smfs
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  SMFS:
+    path: .
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: YES
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  SoMuchForSubtlety-iOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/SoMuchForSubtlety
+    dependencies:
+      - package: SMFS
+        product: ScryerCore
+      - package: SMFS
+        product: ScryerGhostty
+      - package: SMFS
+        product: ScryerRender
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.scryer.smfs.ios
+        TARGETED_DEVICE_FAMILY: "2"   # iPad
+        # Partial Info.plist merged into the generated one — carries the ATS exception
+        # so the app can reach the cleartext http/ws gateway.
+        INFOPLIST_FILE: Support/Info-iOS.plist
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        # Set your team in Xcode (Signing & Capabilities) or here:
+        # DEVELOPMENT_TEAM: ABCDE12345
+
+  SoMuchForSubtlety-macOS:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/SoMuchForSubtlety
+    dependencies:
+      - package: SMFS
+        product: ScryerCore
+      - package: SMFS
+        product: ScryerGhostty
+      - package: SMFS
+        product: ScryerRender
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.scryer.smfs.mac
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        ENABLE_HARDENED_RUNTIME: YES

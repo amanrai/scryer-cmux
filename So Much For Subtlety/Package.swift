@@ -4,26 +4,33 @@ import PackageDescription
 // So Much For Subtlety — native smux client.
 //
 // `ScryerCore` is pure Swift (gateway + websocket + models + the terminal-engine
-// protocol) and builds with no native dependencies, so backend-selection work is
-// verifiable before libghostty-vt is vendored:
+// protocol) with no native dependencies. `ScryerGhostty`/`ScryerRender` add the
+// libghostty-vt bridge and the Metal renderer.
 //
-//     swift build --target ScryerCore
-//
-// The full app additionally requires the libghostty-vt static lib + header, which
-// `Vendor/libghostty-vt/build.sh` produces (needs `zig` on PATH).
+// The Ghostty VT core is vendored as a multi-platform xcframework (macOS + iOS device
+// + iOS simulator), built by `Vendor/libghostty-vt/build-xcframework.sh` (needs zig).
+// The same packages therefore build for both macOS (`swift run SoMuchForSubtlety`) and
+// iOS (via the Xcode app target, which links these library products).
 let package = Package(
     name: "SoMuchForSubtlety",
     platforms: [
         .macOS(.v14),
+        .iOS(.v17),
     ],
     products: [
         .executable(name: "SoMuchForSubtlety", targets: ["SoMuchForSubtlety"]),
         .library(name: "ScryerCore", targets: ["ScryerCore"]),
+        .library(name: "ScryerGhostty", targets: ["ScryerGhostty"]),
+        .library(name: "ScryerRender", targets: ["ScryerRender"]),
     ],
     targets: [
-        // C module over the vendored Ghostty VT core. The header + static lib are
-        // produced by Vendor/libghostty-vt/build.sh into Vendor/libghostty-vt/{include,lib}.
-        .systemLibrary(name: "CGhosttyVT", path: "Sources/CGhosttyVT"),
+        // Ghostty VT core as a prebuilt multi-platform xcframework (module: CGhosttyVT).
+        // Carries vt.h + a CGhosttyVT modulemap, so `import CGhosttyVT` works unchanged
+        // and the right slice is linked per platform automatically.
+        .binaryTarget(
+            name: "CGhosttyVT",
+            path: "Vendor/libghostty-vt/GhosttyVT.xcframework"
+        ),
 
         // Pure-Swift, platform-agnostic core. No native deps.
         .target(
@@ -33,29 +40,17 @@ let package = Package(
         // Ghostty-backed terminal engine: bridges the C API and owns the VT instance.
         .target(
             name: "ScryerGhostty",
-            dependencies: ["ScryerCore", "CGhosttyVT"],
-            swiftSettings: [
-                .unsafeFlags(["-I", "Vendor/libghostty-vt/include"]),
-            ],
-            linkerSettings: [
-                .unsafeFlags(["-L", "Vendor/libghostty-vt/lib"]),
-            ]
+            dependencies: ["ScryerCore", "CGhosttyVT"]
         ),
 
-        // Metal terminal renderer. Consumes `TerminalSnapshot` from ScryerCore only,
-        // so it builds and can be iterated WITHOUT the libghostty-vt binary. The app
-        // target wires the engine's snapshots into it.
+        // Metal terminal renderer. Consumes `TerminalSnapshot` from ScryerCore only.
         .target(
             name: "ScryerRender",
             dependencies: ["ScryerCore"]
         ),
 
-        // macOS bring-up app.
-        //
-        // Depends only on ScryerCore for now so `swift run SoMuchForSubtlety` builds
-        // and shows gateway connect + backend selection + live WebSocket WITHOUT
-        // requiring the libghostty-vt binary. Add "ScryerGhostty"/"ScryerRender" here
-        // once Vendor/libghostty-vt is built and the terminal view lands.
+        // macOS bring-up app (`swift run`). The iOS app is an Xcode target that links
+        // the library products above; both share the Sources/SoMuchForSubtlety code.
         .executableTarget(
             name: "SoMuchForSubtlety",
             dependencies: ["ScryerCore", "ScryerGhostty", "ScryerRender"]

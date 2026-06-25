@@ -102,6 +102,14 @@ public struct KeyEvent: Sendable {
     }
 }
 
+/// Platform-neutral special keys. The UIKit layer (which has no `NSEvent`) emits these
+/// and the engine bridge maps them to libghostty key codes so terminal modes are honored.
+public enum TerminalKey: Sendable {
+    case enter, backspace, tab, escape, delete, space
+    case arrowUp, arrowDown, arrowLeft, arrowRight
+    case home, end, pageUp, pageDown
+}
+
 public struct MouseEvent: Sendable {
     public enum Action: Sendable { case press, release, motion }
     public enum Button: Sendable { case left, middle, right, none }

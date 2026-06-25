@@ -247,7 +247,7 @@ final class MetalTerminalRenderer {
                                    texture2d<float> atlas [[texture(0)]]) {
         constexpr sampler s(filter::linear);
         float a = atlas.sample(s, in.uv).r;
-        return float4(in.color.rgb, in.color.a * a);
+        return float4(in.color.rgb, in.color.a * a * 0.88);
     }
     """
 }

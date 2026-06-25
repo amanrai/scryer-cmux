@@ -41,14 +41,6 @@ struct QuickInputsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Quick Inputs").font(.headline)
-                Spacer()
-                Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .semibold)) }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 18).padding(.vertical, 14)
-            Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     ForEach(groups) { group in
@@ -80,6 +72,6 @@ struct QuickInputsView: View {
                 .padding(18)
             }
         }
-        .frame(width: 440, height: 420)
+        .modalChrome("Quick Inputs", systemImage: "keyboard", width: 440, height: 420)
     }
 }

@@ -36,6 +36,12 @@ struct SettingsView: View {
     private var selectedLabel: String { model.backends.first { $0.id == selectedBackendId }?.label ?? defaultMachineName }
 
     var body: some View {
+        content
+            .onAppear { if selectedBackendId.isEmpty { selectedBackendId = backendId } }
+    }
+
+    #if os(macOS)
+    private var content: some View {
         HStack(spacing: 0) {
             List(selection: pageSelection) {
                 ForEach(Page.allCases) { item in
@@ -56,23 +62,48 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 18).padding(.vertical, 14)
                 Divider()
-                Form { pageContent }.formStyle(.grouped)
+                Form { pageContent(for: page) }.formStyle(.grouped)
             }
         }
         .frame(width: 660, height: 460)
-        .onAppear { if selectedBackendId.isEmpty { selectedBackendId = backendId } }
         .onChange(of: page) { _, newPage in
             if newPage == .pty { Task { await loadPty() } }
             if newPage == .gateway { Task { await loadGateway() } }
         }
         .onChange(of: selectedBackendId) { _, _ in if page == .pty { Task { await loadPty() } } }
     }
+    #else
+    private var content: some View {
+        NavigationStack {
+            List {
+                ForEach(Page.allCases) { item in
+                    NavigationLink {
+                        Form { pageContent(for: item) }
+                            .navigationTitle(item.rawValue)
+                            .navigationBarTitleDisplayMode(.inline)
+                            .task {
+                                if item == .pty { await loadPty() }
+                                if item == .gateway { await loadGateway() }
+                            }
+                    } label: {
+                        Label(item.rawValue, systemImage: item.symbol)
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() }.fontWeight(.semibold) } }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .onChange(of: selectedBackendId) { _, _ in Task { await loadPty() } }
+    }
+    #endif
 
     private var pageSelection: Binding<Page?> {
         Binding(get: { page }, set: { if let value = $0 { page = value } })
     }
 
-    @ViewBuilder private var pageContent: some View {
+    @ViewBuilder private func pageContent(for page: Page) -> some View {
         switch page {
         case .appearance: appearanceSections
         case .machine: machineSections
@@ -86,6 +117,9 @@ struct SettingsView: View {
 
     @ViewBuilder private var appearanceSections: some View {
         Section("Terminal") {
+            Picker("Theme", selection: themeBinding) {
+                ForEach(AppTheme.allCases) { Text($0.displayName).tag($0) }
+            }
             LabeledContent("Font size") {
                 HStack(spacing: 12) {
                     Slider(value: fontSizeBinding, in: AppModel.fontSizeRange, step: 1).frame(width: 180)
@@ -93,6 +127,10 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private var themeBinding: Binding<AppTheme> {
+        Binding(get: { model.theme }, set: { model.theme = $0 })
     }
 
     // MARK: Machine
@@ -119,10 +157,7 @@ struct SettingsView: View {
                         ForEach(MachineIcons.options.filter { $0.group == group }) { option in
                             let selected = model.icons(for: selectedBackendId).contains(option.id)
                             Button { model.toggleIcon(option.id, for: selectedBackendId) } label: {
-                                Image(systemName: option.symbol)
-                                    .frame(width: 26, height: 22)
-                                    .background(selected ? Color.accentColor.opacity(0.28) : Color.secondary.opacity(0.12),
-                                                in: RoundedRectangle(cornerRadius: 5))
+                                MachineIconGlyph(id: option.id, selected: selected)
                             }
                             .buttonStyle(.plain)
                             .help(option.label)
@@ -153,7 +188,7 @@ struct SettingsView: View {
         } header: {
             Text("Host bar buttons")
         } footer: {
-            Text("Active-pane buttons shown in the host bar. The Scryer features arrive later.")
+            Text("Active-pane buttons shown in the host bar.")
         }
     }
 

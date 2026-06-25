@@ -1,11 +1,11 @@
 import SwiftUI
-import AppKit
 import ScryerRender
 
 /// Displays a (persistent) terminal controller: a slim header plus the controller's
 /// owned Metal view. Creates/tears down nothing — the controller lives in the store,
 /// so this view can come and go (sidebar toggle, pane switch) without reconnecting.
 struct TerminalHostView: View {
+    @Environment(AppModel.self) private var model
     let controller: TerminalController
     let fallbackTitle: String
 
@@ -13,7 +13,7 @@ struct TerminalHostView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             TerminalSurface(view: controller.metalView)
-                .background(Color(hex: "#222B36") ?? .black)
+                .background(Color(hex: model.theme.terminal.background.hex) ?? .black)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -38,10 +38,21 @@ struct TerminalHostView: View {
 }
 
 /// Reparents the controller's persistent `TerminalMetalView` into the SwiftUI tree.
-/// Because the same NSView instance is returned, layout changes just move it.
+/// The same view instance is returned, so layout changes just move it (no reconnect).
+#if os(macOS)
+import AppKit
+
 private struct TerminalSurface: NSViewRepresentable {
     let view: TerminalMetalView
-
     func makeNSView(context: Context) -> TerminalMetalView { view }
     func updateNSView(_ nsView: TerminalMetalView, context: Context) {}
 }
+#else
+import UIKit
+
+private struct TerminalSurface: UIViewRepresentable {
+    let view: TerminalMetalView
+    func makeUIView(context: Context) -> TerminalMetalView { view }
+    func updateUIView(_ uiView: TerminalMetalView, context: Context) {}
+}
+#endif

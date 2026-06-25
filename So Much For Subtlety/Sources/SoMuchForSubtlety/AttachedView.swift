@@ -1,5 +1,10 @@
 import SwiftUI
+import Combine
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import ScryerCore
 
 /// After a backend is selected: load its workspace/pane graph and let the user open
@@ -15,17 +20,42 @@ struct AttachedView: View {
     @State private var showingSettings = false
     @State private var showingMachinePicker = false
     @State private var showingQuickInputs = false
+    @State private var showingInteraction = false
+    @State private var showingActivity = false
+    @State private var showingScryerPicker = false
     @State private var hoveredWorkspaceId: String?
     @State private var renamingWorkspaceId: String?
     @State private var renameDraft = ""
+    #if os(iOS)
+    @State private var keyboardVisibility: KeyboardVisibility = .shown   // iPad floating keyboard
+    @State private var lastKeyboardTouch = Date()                        // for 30s auto-faint
+    @AppStorage("smfs.kbOffsetX") private var kbOffsetX: Double = 0      // remembered drag position
+    @AppStorage("smfs.kbOffsetY") private var kbOffsetY: Double = 0
+    private var keyboardOffset: Binding<CGSize> {
+        Binding(get: { CGSize(width: kbOffsetX, height: kbOffsetY) },
+                set: { kbOffsetX = $0.width; kbOffsetY = $0.height })
+    }
+    #endif
 
-    private static let workspaceColors: [(name: String, hex: String)] = [
-        ("Blue", "#5AA6F0"), ("Amber", "#E8B65A"), ("Green", "#6FCB7F"), ("Cyan", "#4FC9D4"),
-        ("Purple", "#B47BE8"), ("Coral", "#F0786E"), ("Slate", "#8A93A3"),
+    private static let workspaceColors: [(name: String, hex: String, swatch: String)] = [
+        ("Blue", "#5AA6F0", "🟦"), ("Amber", "#E8B65A", "🟨"), ("Green", "#6FCB7F", "🟩"), ("Cyan", "#4FC9D4", "🟦"),
+        ("Purple", "#B47BE8", "🟪"), ("Coral", "#F0786E", "🟥"), ("Slate", "#8A93A3", "⬛️"),
     ]
 
-    private var terminalBackground: Color { Color(hex: "#222B36") ?? .black }
-    private var chromeBackground: Color { Color(hex: "#21252B") ?? .black }     // One Dark UI chrome
+    private var terminalBackground: Color { Color(hex: model.theme.terminal.background.hex) ?? .black }
+    private var chromeBackground: Color { Color(hex: model.theme.terminal.chrome.hex) ?? .black }
+
+    // Larger touch targets on iPad; compact on the Mac.
+    private func platformValue(_ ios: CGFloat, mac: CGFloat) -> CGFloat {
+        #if os(iOS)
+        ios
+        #else
+        mac
+        #endif
+    }
+    private var chromeGlyph: CGFloat { platformValue(17, mac: 11) }
+    private var chromeSpacing: CGFloat { platformValue(18, mac: 8) }
+    private var chromeMinHeight: CGFloat { platformValue(48, mac: 32) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,17 +71,55 @@ struct AttachedView: View {
                         Divider()
                     }
                     terminal
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.black.opacity(0.22), lineWidth: 1))
+                        .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 8)
+                        #if os(iOS)
+                        .simultaneousGesture(TapGesture(count: 2).onEnded {
+                            lastKeyboardTouch = Date()
+                            withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown }
+                        })
+                        #endif
                 }
             } else {
                 loadingOrError
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(terminalBackground)
+        .background(chromeBackground)   // chrome is the container; the terminal nests inside it
+        #if os(iOS)
+        .overlay(alignment: .bottom) {
+            if keyboardVisibility != .hidden, let controller = activeController {
+                GeometryReader { geo in
+                    FloatingKeyboardView(
+                        onText: { controller.type($0, modifiers: $1) },
+                        onSpecialKey: { controller.type($0, modifiers: $1) },
+                        onHide: { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .hidden } },
+                        onActivate: {
+                            lastKeyboardTouch = Date()
+                            if keyboardVisibility == .faint { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown } }
+                        },
+                        theme: model.theme.terminal,
+                        containerHeight: geo.size.height,
+                        topInset: chromeMinHeight + 12,
+                        position: keyboardOffset
+                    )
+                    .opacity(keyboardVisibility == .faint ? 0.28 : 1)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        #endif
+        #if os(macOS)
         .ignoresSafeArea(.container, edges: .top)   // top bar shares the traffic-light row
+        #endif
         .task(id: backend.id) { await loadState() }
         .onDisappear { store.teardown() }
         .onChange(of: model.fontSize) { _, newValue in store.setFontSize(CGFloat(newValue)) }
+        .onChange(of: model.theme) { _, newTheme in store.setTheme(newTheme.terminal) }
         .sheet(isPresented: $showingSettings) {
             SettingsView(backendId: backend.id, defaultMachineName: state?.hostName ?? backend.label).environment(model)
         }
@@ -64,11 +132,50 @@ struct AttachedView: View {
         .sheet(isPresented: $showingQuickInputs) {
             QuickInputsView { text in activeController?.send(text) }
         }
+        .sheet(isPresented: $showingInteraction) {
+            if let controller = activeController, let request = controller.pendingInteraction {
+                InteractionModalView(
+                    request: request,
+                    updates: controller.updates,
+                    onRespond: { controller.respondToInteraction($0) },
+                    onDismissRequest: { controller.dismissInteraction() }
+                )
+            } else {
+                noInteractionPlaceholder
+            }
+        }
+        .sheet(isPresented: $showingActivity, onDismiss: { activeController?.activityVisible = false }) {
+            ActivityModalView(updates: activeController?.updates ?? [])
+        }
+        .sheet(isPresented: $showingScryerPicker) {
+            if let endpoint = model.endpoint {
+                ScryerPickerView(backendId: backend.id, endpoint: endpoint) { text in activeController?.send(text) }
+            }
+        }
         .alert("Rename Workspace", isPresented: Binding(get: { renamingWorkspaceId != nil }, set: { if !$0 { renamingWorkspaceId = nil } })) {
             TextField("Name", text: $renameDraft)
             Button("Save") { Task { await renameWorkspace() } }
             Button("Cancel", role: .cancel) { renamingWorkspaceId = nil }
         }
+        // Surface a freshly-arrived interaction on *every* frame, the way gateway-ui
+        // does (driven by an epoch counter, not the request id, so a re-pushed id
+        // still re-presents).
+        .onChange(of: activeController?.interactionEpoch) { _, _ in
+            if activeController?.pendingInteraction != nil, model.hostButtons.interaction {
+                showingInteraction = true
+            }
+        }
+        // Re-scan terminal state for the producer marker whenever the active pane
+        // changes, so "listening" reflects the terminal we just switched to.
+        .onChange(of: selectedPaneId) { _, _ in activeController?.refreshProducerState() }
+        #if os(iOS)
+        // After 30s with no keyboard interaction, fade it to faint.
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+            if keyboardVisibility == .shown, Date().timeIntervalSince(lastKeyboardTouch) > 30 {
+                withAnimation(.easeOut(duration: 0.35)) { keyboardVisibility = .faint }
+            }
+        }
+        #endif
     }
 
     private var displayMachineName: String {
@@ -80,9 +187,9 @@ struct AttachedView: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: chromeSpacing) {
             Button(action: { withAnimation(.easeInOut(duration: 0.18)) { model.sidebarCollapsed.toggle() } }) {
-                Image(systemName: "sidebar.left").font(.system(size: 13))
+                Image(systemName: "sidebar.left").font(.system(size: chromeGlyph))
             }
             .buttonStyle(.borderless)
             .help(model.sidebarCollapsed ? "Show terminals" : "Hide terminals")
@@ -90,9 +197,7 @@ struct AttachedView: View {
             Button(action: { showingMachinePicker = true }) {
                 HStack(spacing: 5) {
                     ForEach(model.icons(for: backend.id), id: \.self) { iconId in
-                        Image(systemName: MachineIcons.symbol(for: iconId))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(machineNameColor ?? Color.primary)
+                        MachineIconGlyph(id: iconId, selected: true, compact: true)
                     }
                     Text(displayMachineName).font(.system(size: 12, weight: .medium))
                         .foregroundStyle(machineNameColor ?? Color.primary)
@@ -107,34 +212,102 @@ struct AttachedView: View {
 
             hostActions
 
-            Button(action: { showingSettings = true }) { Image(systemName: "gearshape").font(.system(size: 11)) }
+            #if os(iOS)
+            Button {
+                lastKeyboardTouch = Date()
+                withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = keyboardVisibility.next }
+            } label: {
+                Image(systemName: keyboardVisibility.icon).font(.system(size: chromeGlyph))
+            }
+            .buttonStyle(.borderless)
+            .help("Keyboard: \(keyboardVisibility.label)")
+            #endif
+
+            Button(action: { showingSettings = true }) { Image(systemName: "gearshape").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless)
                 .help("Settings")
         }
+        #if os(macOS)
         .padding(.leading, 78)   // clear the macOS traffic-light buttons
+        #else
+        .padding(.leading, 12)
+        #endif
         .padding(.trailing, 10)
-        .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: chromeMinHeight, alignment: .leading)
         .background(chromeBackground)
     }
 
     @ViewBuilder private var hostActions: some View {
+        if model.hostButtons.interaction {
+            let pending = activeController?.pendingInteraction != nil
+            let listening = activeController?.hasProducer == true
+            Button { showingInteraction = true } label: {
+                Image(systemName: "bubble.left.and.bubble.right").font(.system(size: chromeGlyph))
+                    // Filled when listening (a producer is attached); red dot when a
+                    // response is actually needed.
+                    .foregroundStyle(listening ? Color.white : Color.secondary)
+                    .padding(.horizontal, 5).padding(.vertical, 3)
+                    .background(listening ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+                    .overlay(alignment: .topTrailing) {
+                        if pending { Circle().fill(Color.red).frame(width: 6, height: 6).offset(x: 2, y: -2) }
+                    }
+            }
+            .buttonStyle(.borderless)
+            .help(pending ? "Interaction needed" : (listening ? "Listening for interactions" : "Interaction"))
+        }
+        if model.hostButtons.agentUpdates {
+            let unread = activeController?.unreadUpdates ?? 0
+            Button {
+                activeController?.activityVisible = true
+                activeController?.markUpdatesRead()
+                showingActivity = true
+            } label: {
+                Image(systemName: "list.bullet.rectangle").font(.system(size: chromeGlyph))
+                    .overlay(alignment: .topTrailing) {
+                        if unread > 0 {
+                            Circle().fill(Color.red).frame(width: 6, height: 6).offset(x: 3, y: -2)
+                        }
+                    }
+            }
+            .buttonStyle(.borderless)
+            .help("Agent updates")
+        }
+        if model.hostButtons.scryer {
+            Button { showingScryerPicker = true } label: { Image(systemName: "rectangle.3.group").font(.system(size: chromeGlyph)) }
+                .buttonStyle(.borderless).help("Scryer project & ticket")
+        }
         if model.hostButtons.fontSize {
-            Button { adjustFontSize(-1) } label: { Image(systemName: "minus.magnifyingglass").font(.system(size: 11)) }
+            Button { adjustFontSize(-1) } label: { Image(systemName: "minus.magnifyingglass").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless).help("Decrease font size")
-            Button { adjustFontSize(1) } label: { Image(systemName: "plus.magnifyingglass").font(.system(size: 11)) }
+            Button { adjustFontSize(1) } label: { Image(systemName: "plus.magnifyingglass").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless).help("Increase font size")
         }
         if model.hostButtons.quickInputs {
-            Button { showingQuickInputs = true } label: { Image(systemName: "keyboard").font(.system(size: 11)) }
+            Button { showingQuickInputs = true } label: { Image(systemName: "keyboard").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless).help("Quick inputs")
         }
-        if model.hostButtons.fontSize || model.hostButtons.quickInputs {
-            Divider().frame(height: 13).padding(.horizontal, 3)
-        }
+        Divider().frame(height: 13).padding(.horizontal, 3)
     }
 
+    private var noInteractionPlaceholder: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "bubble.left.and.bubble.right").font(.system(size: 22)).foregroundStyle(.secondary)
+            Text("No interaction pending").font(.system(size: 13, weight: .medium))
+            Text("Agents request input here when they need it.")
+                .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .frame(width: 360, height: 220).padding()
+    }
+
+    // Resolve (creating if needed) the controller for the selected pane. Using
+    // `controller(...)` rather than `existing(...)` matters: the top bar reads this
+    // *before* the terminal view builder runs, so `existing` would return nil on the
+    // first render and the bar would never establish @Observable tracking on the
+    // controller's `hasProducer` — leaving the listening fill stale until some other
+    // re-render. Resolving here ensures the bar observes it from the first pass.
     private var activeController: TerminalController? {
-        selectedPaneId.flatMap { store.existing(paneId: $0) }
+        guard let paneId = selectedPaneId, let endpoint = model.endpoint else { return nil }
+        return store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id, fontSize: CGFloat(model.fontSize), theme: model.theme.terminal)
     }
 
     private func adjustFontSize(_ delta: Double) {
@@ -182,28 +355,28 @@ struct AttachedView: View {
     // One workspace == one terminal (we cap at one pane per workspace).
     private func workspaceRow(_ workspace: Workspace, isSelected: Bool) -> some View {
         let showClose = hoveredWorkspaceId == workspace.id || isSelected
-        return Button(action: { selectWorkspace(workspace) }) {
-            HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color(hex: workspace.color) ?? .gray)
-                    .frame(width: 9, height: 9)
-                Text(workspace.name).font(.system(size: 12)).lineLimit(1)
-                Spacer(minLength: 4)
-                Button { Task { await closeWorkspace(workspace) } } label: {
-                    Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.tertiary)
-                .opacity(showClose ? 1 : 0)
-                .help("Close workspace")
+        return HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color(hex: workspace.color) ?? .gray)
+                .frame(width: 9, height: 9)
+            Text(workspace.name).font(.system(size: 12)).lineLimit(1)
+            Spacer(minLength: 4)
+            Button { Task { await closeWorkspace(workspace) } } label: {
+                Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Color.accentColor.opacity(0.25) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 6))
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .foregroundStyle(.tertiary)
+            .opacity(showClose ? 1 : 0)
+            .help("Close workspace")
         }
-        .buttonStyle(.plain)
+        .padding(.leading, 8).padding(.trailing, 3).padding(.vertical, 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isSelected ? Color.accentColor.opacity(0.25) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 6))
+        .contentShape(Rectangle())
+        .onTapGesture { selectWorkspace(workspace) }
         .onHover { hovering in hoveredWorkspaceId = hovering ? workspace.id : (hoveredWorkspaceId == workspace.id ? nil : hoveredWorkspaceId) }
         .contextMenu {
             Button("Rename…") { startRename(workspace) }
@@ -213,7 +386,7 @@ struct AttachedView: View {
                     Button {
                         Task { await setWorkspaceColor(swatch.hex, for: workspace) }
                     } label: {
-                        Label(swatch.name, systemImage: workspace.color.caseInsensitiveCompare(swatch.hex) == .orderedSame ? "checkmark" : "circle")
+                        Label("\(swatch.swatch)  \(swatch.name)", systemImage: workspace.color.caseInsensitiveCompare(swatch.hex) == .orderedSame ? "checkmark" : "")
                     }
                 }
             }
@@ -226,7 +399,7 @@ struct AttachedView: View {
         if let paneId = selectedPaneId,
            let endpoint = model.endpoint,
            let pane = state?.workspaces.flatMap(\.panes).first(where: { $0.id == paneId }),
-           let controller = store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id, fontSize: CGFloat(model.fontSize)) {
+           let controller = store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id, fontSize: CGFloat(model.fontSize), theme: model.theme.terminal) {
             TerminalHostView(controller: controller, fallbackTitle: pane.title)
                 .id(paneId)
         } else {
@@ -358,10 +531,46 @@ extension Color {
 
     /// "#RRGGBB" for the color in sRGB, or nil if it can't be resolved.
     func toHex() -> String? {
+        #if os(macOS)
         guard let ns = NSColor(self).usingColorSpace(.sRGB) else { return nil }
         let r = Int((ns.redComponent * 255).rounded())
         let g = Int((ns.greenComponent * 255).rounded())
         let b = Int((ns.blueComponent * 255).rounded())
         return String(format: "#%02X%02X%02X", r, g, b)
+        #else
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        return String(format: "#%02X%02X%02X", Int((r * 255).rounded()), Int((g * 255).rounded()), Int((b * 255).rounded()))
+        #endif
     }
 }
+
+#if os(iOS)
+/// Tri-state for the floating keyboard: fully shown, faint (visible + still usable but
+/// out of the way), or hidden. The top-bar button cycles through them.
+enum KeyboardVisibility {
+    case shown, faint, hidden
+
+    var next: KeyboardVisibility {
+        switch self {
+        case .shown: return .faint
+        case .faint: return .hidden
+        case .hidden: return .shown
+        }
+    }
+    var icon: String {
+        switch self {
+        case .shown: return "keyboard.fill"
+        case .faint: return "keyboard"
+        case .hidden: return "keyboard.chevron.compact.down"
+        }
+    }
+    var label: String {
+        switch self {
+        case .shown: return "shown"
+        case .faint: return "faint"
+        case .hidden: return "hidden"
+        }
+    }
+}
+#endif

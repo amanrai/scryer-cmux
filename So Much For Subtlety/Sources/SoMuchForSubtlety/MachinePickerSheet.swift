@@ -12,18 +12,6 @@ struct MachinePickerSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Switch Machine").font(.system(size: 16, weight: .semibold))
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 15)).foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 20).padding(.vertical, 16)
-
-            Divider()
-
             ScrollView {
                 LazyVStack(spacing: 8) {
                     if selectable.isEmpty {
@@ -75,6 +63,6 @@ struct MachinePickerSheet: View {
             }
             .padding(.horizontal, 20).padding(.vertical, 12)
         }
-        .frame(width: 440, height: 400)
+        .modalChrome("Switch Machine", systemImage: "desktopcomputer", width: 440, height: 400)
     }
 }

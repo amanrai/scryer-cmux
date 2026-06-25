@@ -34,11 +34,17 @@ final class AppModel {
         didSet { UserDefaults.standard.set(fontSize, forKey: Self.fontSizeDefaultsKey) }
     }
 
+    /// Active color theme. Persisted; applied live to all open terminals + the chrome.
+    var theme: AppTheme {
+        didSet { UserDefaults.standard.set(theme.rawValue, forKey: Self.themeDefaultsKey) }
+    }
+
     private var refreshTask: Task<Void, Never>?
 
     private static let endpointDefaultsKey = "smfs.gateway.endpoint"
     private static let backendDefaultsKey = "smfs.backend.id"
     private static let fontSizeDefaultsKey = "smfs.fontSize"
+    private static let themeDefaultsKey = "smfs.theme"
 
     static let fontSizeRange: ClosedRange<Double> = 8...28
 
@@ -97,6 +103,7 @@ final class AppModel {
     init() {
         let stored = UserDefaults.standard.object(forKey: Self.fontSizeDefaultsKey) as? Double
         self.fontSize = stored.map { min(max($0, Self.fontSizeRange.lowerBound), Self.fontSizeRange.upperBound) } ?? 13
+        self.theme = UserDefaults.standard.string(forKey: Self.themeDefaultsKey).flatMap(AppTheme.init(rawValue:)) ?? .oneDark
         self.machineNames = UserDefaults.standard.dictionary(forKey: Self.machineNamesKey) as? [String: String] ?? [:]
         self.machineNameColors = UserDefaults.standard.dictionary(forKey: Self.machineNameColorsKey) as? [String: String] ?? [:]
         self.lastWorkspaceByBackend = UserDefaults.standard.dictionary(forKey: Self.lastWorkspaceKey) as? [String: String] ?? [:]
