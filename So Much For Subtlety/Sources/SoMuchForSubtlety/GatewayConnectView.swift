@@ -51,7 +51,6 @@ struct GatewayConnectView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             hostDraft = model.gatewayHostDraft
-            fieldFocused = true
         }
     }
 

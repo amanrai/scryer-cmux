@@ -19,6 +19,7 @@ struct FloatingKeyboardView: View {
     @GestureState private var dragOffset = CGSize.zero
     @State private var shift = false
     @State private var control = false
+    @State private var option = false
     @State private var tab: KeyboardTab = .keys
     @State private var kbHeight: CGFloat = 0
 
@@ -108,13 +109,14 @@ struct FloatingKeyboardView: View {
     private enum Key: Identifiable {
         case char(String, String)              // (base, shifted) → typed text
         case special(TerminalKey, String)      // key, label
-        case shift, control
+        case shift, control, option
         var id: String {
             switch self {
             case .char(let b, _): return "c\(b)"
             case .special(_, let l): return "s\(l)"
             case .shift: return "shift"
             case .control: return "ctrl"
+            case .option: return "alt"
             }
         }
     }
@@ -131,7 +133,7 @@ struct FloatingKeyboardView: View {
          .char(";", ":"), .char("'", "\""), .special(.enter, "⏎")],
         [.shift, .char("z", "Z"), .char("x", "X"), .char("c", "C"), .char("v", "V"), .char("b", "B"),
          .char("n", "N"), .char("m", "M"), .char(",", "<"), .char(".", ">"), .char("/", "?"), .shift],
-        [.control, .char(" ", " "), .special(.arrowLeft, "←"), .special(.arrowUp, "↑"),
+        [.control, .option, .char(" ", " "), .special(.arrowLeft, "←"), .special(.arrowUp, "↑"),
          .special(.arrowDown, "↓"), .special(.arrowRight, "→")],
     ]
 
@@ -162,7 +164,7 @@ struct FloatingKeyboardView: View {
             default: return 1            // arrows
             }
         case .shift: return 1.8
-        case .control: return 1.6
+        case .control, .option: return 1.6
         }
     }
 
@@ -183,6 +185,8 @@ struct FloatingKeyboardView: View {
             keyCap("⇧", width: width, active: shift) { shift.toggle() }
         case .control:
             keyCap("ctrl", width: width, active: control) { control.toggle() }
+        case .option:
+            keyCap("alt", width: width, active: option) { option.toggle() }
         }
     }
 
@@ -199,17 +203,24 @@ struct FloatingKeyboardView: View {
         .buttonStyle(.plain)
     }
 
-    private var modifiers: KeyModifiers { control ? [.control] : [] }
+    private var modifiers: KeyModifiers {
+        var mods: KeyModifiers = []
+        if control { mods.insert(.control) }
+        if option { mods.insert(.option) }
+        return mods
+    }
 
     private func tapChar(_ base: String, _ shifted: String) {
         onText(shift ? shifted : base, modifiers)
-        shift = false
+        // shift is sticky (toggle it off yourself); ctrl/alt are one-shot.
         control = false
+        option = false
     }
 
     private func tapSpecial(_ key: TerminalKey) {
         onSpecialKey(key, modifiers)
         control = false
+        option = false
     }
 
     // MARK: Tab 2 — pre-baked combos & commands
@@ -259,26 +270,30 @@ struct FloatingKeyboardView: View {
         .command("/comms-test"), .command("/comms-test-update"), .command("/tree"), .command("/reload"),
     ]
 
+    // Macro tabs share the QWERTY height; content that doesn't fit (e.g. the ⌃ tab in
+    // portrait) scrolls within it instead of bleeding past the panel.
+    private func macroTab<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) { content() }
+                .padding(.horizontal, 2)
+        }
+        .frame(height: contentHeight)
+    }
+
     private var commands: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        macroTab {
             macroSection("Control", controlMacros)
             macroSection("Keys", keyMacros)
             macroSection("Commands", commandMacros)
         }
-        .padding(.horizontal, 2)
-        .frame(height: contentHeight, alignment: .top)
     }
 
     private var tmuxView: some View {
-        macroSection("tmux  ·  prefix ⌃B", tmuxMacros)
-            .padding(.horizontal, 2)
-            .frame(height: contentHeight, alignment: .top)
+        macroTab { macroSection("tmux  ·  prefix ⌃B", tmuxMacros) }
     }
 
     private var piView: some View {
-        macroSection("pi", piCommands, fontSize: 13)
-            .padding(.horizontal, 2)
-            .frame(height: contentHeight, alignment: .top)
+        macroTab { macroSection("pi", piCommands, fontSize: 13) }
     }
 
     private func macroSection(_ title: String, _ macros: [Macro], fontSize: CGFloat = 16) -> some View {

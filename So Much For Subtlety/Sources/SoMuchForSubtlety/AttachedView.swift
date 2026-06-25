@@ -27,8 +27,14 @@ struct AttachedView: View {
     @State private var renameDraft = ""
     #if os(iOS)
     @State private var keyboardVisibility: KeyboardVisibility = .shown   // iPad floating keyboard
+    @State private var keyboardVisibilityBeforeModal: KeyboardVisibility? // restore after a sheet closes
     @AppStorage("smfs.kbOffsetX") private var kbOffsetX: Double = 0      // remembered drag position
     @AppStorage("smfs.kbOffsetY") private var kbOffsetY: Double = 0
+
+    private var anyModalOpen: Bool {
+        showingSettings || showingMachinePicker || showingQuickInputs
+            || showingInteraction || showingActivity || showingScryerPicker || renamingWorkspaceId != nil
+    }
     private var keyboardOffset: Binding<CGSize> {
         Binding(get: { CGSize(width: kbOffsetX, height: kbOffsetY) },
                 set: { kbOffsetX = $0.width; kbOffsetY = $0.height })
@@ -109,7 +115,7 @@ struct AttachedView: View {
                         position: keyboardOffset
                     )
                     .environment(\.colorScheme, .dark)   // keep handle/picker legible on the black surface
-                    .opacity(keyboardVisibility == .faint ? 0.05 : 1)
+                    .opacity(keyboardVisibility == .faint ? 0.01 : 1)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -173,6 +179,18 @@ struct AttachedView: View {
         // Re-scan terminal state for the producer marker whenever the active pane
         // changes, so "listening" reflects the terminal we just switched to.
         .onChange(of: selectedPaneId) { _, _ in activeController?.refreshProducerState() }
+        #if os(iOS)
+        // Any sheet opening hides the floating keyboard; closing restores its prior state.
+        .onChange(of: anyModalOpen) { _, open in
+            if open {
+                if keyboardVisibilityBeforeModal == nil { keyboardVisibilityBeforeModal = keyboardVisibility }
+                keyboardVisibility = .hidden
+            } else if let prior = keyboardVisibilityBeforeModal {
+                keyboardVisibility = prior
+                keyboardVisibilityBeforeModal = nil
+            }
+        }
+        #endif
     }
 
     private var displayMachineName: String {

@@ -12,6 +12,7 @@ struct InteractionModalView: View {
 
     @State private var composing = false
     @State private var draft = ""
+    @FocusState private var composeFocused: Bool
 
     private var recentUpdates: [SessionUpdate] { Array(updates.suffix(2)) }
 
@@ -57,6 +58,8 @@ struct InteractionModalView: View {
                 Section("Custom response") {
                     TextEditor(text: $draft)
                         .font(.body.monospaced()).frame(minHeight: 90)
+                        .focused($composeFocused)
+                        .onAppear { composeFocused = true }   // raise the system keyboard
                     Button("Send") {
                         onRespond(["kind": "custom", "text": draft.trimmingCharacters(in: .whitespacesAndNewlines)]); dismiss()
                     }
