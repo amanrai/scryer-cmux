@@ -19,12 +19,15 @@ final class GlyphAtlas {
         let italic: Bool
     }
 
-    /// UV rectangle (0…1) of a cell-box glyph within the atlas texture.
+    /// UV rectangle (0…1) of a cell-box glyph within an atlas texture.
     struct Entry {
         let u0: Float, v0: Float, u1: Float, v1: Float
+        let isColor: Bool    // emoji/color glyph → sample `colorTexture`, no fg tint
+        let cellsWide: Int   // 1, or 2 for wide (emoji) glyphs
     }
 
-    let texture: MTLTexture
+    let texture: MTLTexture        // R8: monochrome glyphs, tinted by the cell fg
+    let colorTexture: MTLTexture   // BGRA premultiplied: color emoji, drawn as-is
     let cellWidth: Int
     let cellHeight: Int
     let baseline: CGFloat
@@ -39,6 +42,8 @@ final class GlyphAtlas {
     private var entries: [Key: Entry] = [:]
     private var penX = 0
     private var penY = 0
+    private var colorPenX = 0
+    private var colorPenY = 0
 
     init?(device: MTLDevice, fontSize: CGFloat, atlasSize: Int = 2048) {
         self.device = device
@@ -66,17 +71,23 @@ final class GlyphAtlas {
         _ = CTFontGetAdvancesForGlyphs(regular, .horizontal, &glyphs, &advance, 1)
         self.cellWidth = max(1, Int(advance.width.rounded(.up)))
 
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .r8Unorm, width: atlasSize, height: atlasSize, mipmapped: false)
-        descriptor.usage = .shaderRead
         // .managed (discrete-GPU CPU/GPU sync) is macOS-only; iOS has unified memory.
-        #if os(macOS)
-        descriptor.storageMode = .managed
-        #else
-        descriptor.storageMode = .shared
-        #endif
-        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
+        func makeAtlas(_ format: MTLPixelFormat) -> MTLTexture? {
+            let d = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: format, width: atlasSize, height: atlasSize, mipmapped: false)
+            d.usage = .shaderRead
+            #if os(macOS)
+            d.storageMode = .managed
+            #else
+            d.storageMode = .shared
+            #endif
+            return device.makeTexture(descriptor: d)
+        }
+        guard let texture = makeAtlas(.r8Unorm),
+              let colorTexture = makeAtlas(.bgra8Unorm)
+        else { return nil }
         self.texture = texture
+        self.colorTexture = colorTexture
     }
 
     private static func derive(_ base: CTFont, traits: CTFontSymbolicTraits, fontSize: CGFloat) -> CTFont {
@@ -135,51 +146,85 @@ final class GlyphAtlas {
     }
 
     private func rasterize(_ key: Key) -> Entry? {
-        // Advance the shelf packer.
-        if penX + cellWidth > atlasSize {
-            penX = 0
-            penY += cellHeight
+        GlyphAtlas.isColorGlyph(key.text) ? rasterizeColor(key) : rasterizeMono(key)
+    }
+
+    /// True for scalars that default to (or are forced into) emoji presentation.
+    private static func isColorGlyph(_ text: String) -> Bool {
+        for scalar in text.unicodeScalars {
+            if scalar.properties.isEmojiPresentation { return true }
+            if scalar.value == 0xFE0F { return true }   // VS16 emoji variation selector
         }
-        guard penY + cellHeight <= atlasSize else { return nil } // atlas full (v1)
+        return false
+    }
+
+    /// Monochrome glyph → R8 atlas, tinted by the cell fg in the shader.
+    private func rasterizeMono(_ key: Key) -> Entry? {
+        if penX + cellWidth > atlasSize { penX = 0; penY += cellHeight }
+        guard penY + cellHeight <= atlasSize else { return nil }
         let originX = penX, originY = penY
         penX += cellWidth
 
-        // Manually-managed buffer so the CGContext's backing store stays alive across
-        // drawing and the texture upload (a withUnsafeMutableBytes pointer would dangle).
         let bytesPerRow = cellWidth
-        let byteCount = cellWidth * cellHeight
-        let data = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 1)
-        data.initializeMemory(as: UInt8.self, repeating: 0, count: byteCount)
+        let data = UnsafeMutableRawPointer.allocate(byteCount: cellWidth * cellHeight, alignment: 1)
+        data.initializeMemory(as: UInt8.self, repeating: 0, count: cellWidth * cellHeight)
         defer { data.deallocate() }
 
         let colorSpace = CGColorSpaceCreateDeviceGray()
         guard let context = CGContext(data: data, width: cellWidth, height: cellHeight,
                                       bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: colorSpace,
                                       bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
-
-        // Glyph color comes from the attributed string (white); CTLineDraw ignores
-        // the context fill color.
-        let font = font(bold: key.bold, italic: key.italic)
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
+            .font: font(bold: key.bold, italic: key.italic),
             .foregroundColor: CGColor(gray: 1, alpha: 1),
         ]
-        let attributed = NSAttributedString(string: key.text, attributes: attributes)
-        let line = CTLineCreateWithAttributedString(attributed)
-        // CoreGraphics origin is bottom-left; baseline measured from bottom.
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: key.text, attributes: attributes))
         context.textPosition = CGPoint(x: 0, y: baseline)
         CTLineDraw(line, context)
 
-        // Upload this cell box into the atlas.
-        let region = MTLRegionMake2D(originX, originY, cellWidth, cellHeight)
-        texture.replace(region: region, mipmapLevel: 0, withBytes: data, bytesPerRow: bytesPerRow)
+        texture.replace(region: MTLRegionMake2D(originX, originY, cellWidth, cellHeight),
+                        mipmapLevel: 0, withBytes: data, bytesPerRow: bytesPerRow)
 
         let s = Float(atlasSize)
-        return Entry(
-            u0: Float(originX) / s,
-            v0: Float(originY) / s,
-            u1: Float(originX + cellWidth) / s,
-            v1: Float(originY + cellHeight) / s
-        )
+        return Entry(u0: Float(originX) / s, v0: Float(originY) / s,
+                     u1: Float(originX + cellWidth) / s, v1: Float(originY + cellHeight) / s,
+                     isColor: false, cellsWide: 1)
+    }
+
+    /// Color emoji → BGRA premultiplied atlas, drawn as-is. Emoji are typically wide
+    /// (2 cells), so we measure the advance and rasterize into a 1- or 2-cell box.
+    private func rasterizeColor(_ key: Key) -> Entry? {
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(string: key.text, attributes: [.font: regularFont]))
+        let advance = CTLineGetTypographicBounds(line, nil, nil, nil)
+        let cellsWide = max(1, min(2, Int((CGFloat(advance) / CGFloat(cellWidth)).rounded())))
+        let boxWidth = cellsWide * cellWidth
+
+        if colorPenX + boxWidth > atlasSize { colorPenX = 0; colorPenY += cellHeight }
+        guard colorPenY + cellHeight <= atlasSize else { return nil }
+        let originX = colorPenX, originY = colorPenY
+        colorPenX += boxWidth
+
+        let bytesPerRow = boxWidth * 4
+        let data = UnsafeMutableRawPointer.allocate(byteCount: bytesPerRow * cellHeight, alignment: 1)
+        data.initializeMemory(as: UInt8.self, repeating: 0, count: bytesPerRow * cellHeight)
+        defer { data.deallocate() }
+
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let context = CGContext(data: data, width: boxWidth, height: cellHeight,
+                                      bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo) else { return nil }
+        // Center the emoji within its box; CTLineDraw renders Apple Color Emoji in color.
+        let inset = (CGFloat(boxWidth) - CGFloat(advance)) / 2
+        context.textPosition = CGPoint(x: max(0, inset), y: baseline)
+        CTLineDraw(line, context)
+
+        colorTexture.replace(region: MTLRegionMake2D(originX, originY, boxWidth, cellHeight),
+                             mipmapLevel: 0, withBytes: data, bytesPerRow: bytesPerRow)
+
+        let s = Float(atlasSize)
+        return Entry(u0: Float(originX) / s, v0: Float(originY) / s,
+                     u1: Float(originX + boxWidth) / s, v1: Float(originY + cellHeight) / s,
+                     isColor: true, cellsWide: cellsWide)
     }
 }

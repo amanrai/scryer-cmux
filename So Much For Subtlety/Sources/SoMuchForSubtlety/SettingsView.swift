@@ -2,7 +2,7 @@ import SwiftUI
 import ScryerCore
 
 /// App-wide settings, styled like macOS System Settings: a sidebar `List` plus grouped
-/// `Form` content. Mirrors the gateway-ui pages (Machine / Buttons / PTY / Gateway).
+/// `Form` content. Pages: Appearance / Machine / Buttons / Gateway.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -10,14 +10,13 @@ struct SettingsView: View {
     let defaultMachineName: String
 
     enum Page: String, CaseIterable, Identifiable, Hashable {
-        case appearance = "Appearance", machine = "Machine", buttons = "Buttons", pty = "PTY", gateway = "Gateway"
+        case appearance = "Appearance", machine = "Machine", buttons = "Buttons", gateway = "Gateway"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .appearance: return "textformat.size"
             case .machine: return "desktopcomputer"
             case .buttons: return "switch.2"
-            case .pty: return "antenna.radiowaves.left.and.right"
             case .gateway: return "point.3.connected.trianglepath.dotted"
             }
         }
@@ -25,10 +24,6 @@ struct SettingsView: View {
 
     @State private var page: Page = .appearance
     @State private var selectedBackendId = ""
-    @State private var ptyDraft: PtyConfig?
-    @State private var ptyStatus: PtyConfigStatus?
-    @State private var ptyMessage = ""
-    @State private var ptyBusy = false
     @State private var gatewayBackends: [BackendMachine] = []
     @State private var gatewayBusy = false
 
@@ -67,10 +62,8 @@ struct SettingsView: View {
         }
         .frame(width: 660, height: 460)
         .onChange(of: page) { _, newPage in
-            if newPage == .pty { Task { await loadPty() } }
             if newPage == .gateway { Task { await loadGateway() } }
         }
-        .onChange(of: selectedBackendId) { _, _ in if page == .pty { Task { await loadPty() } } }
     }
     #else
     private var content: some View {
@@ -81,10 +74,7 @@ struct SettingsView: View {
                         Form { pageContent(for: item) }
                             .navigationTitle(item.rawValue)
                             .navigationBarTitleDisplayMode(.inline)
-                            .task {
-                                if item == .pty { await loadPty() }
-                                if item == .gateway { await loadGateway() }
-                            }
+                            .task { if item == .gateway { await loadGateway() } }
                     } label: {
                         Label(item.rawValue, systemImage: item.symbol)
                     }
@@ -95,7 +85,6 @@ struct SettingsView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .onChange(of: selectedBackendId) { _, _ in Task { await loadPty() } }
     }
     #endif
 
@@ -108,7 +97,6 @@ struct SettingsView: View {
         case .appearance: appearanceSections
         case .machine: machineSections
         case .buttons: buttonsSections
-        case .pty: ptySections
         case .gateway: gatewaySections
         }
     }
@@ -192,41 +180,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: PTY
-
-    @ViewBuilder private var ptySections: some View {
-        if let draft = ptyDraft {
-            Section("PTY server") {
-                TextField("Gateway URL", text: ptyString(\.gatewayUrl), prompt: Text("http://gateway-host:43223"))
-                TextField("Machine ID", text: ptyString(\.machineId))
-                TextField("Machine name", text: ptyString(\.machineName))
-                LabeledContent("PTY URL", value: draft.publicUrl)
-                Toggle("Heartbeat enabled", isOn: Binding(get: { ptyDraft?.heartbeatEnabled ?? false }, set: { ptyDraft?.heartbeatEnabled = $0 }))
-            }
-            Section {
-                HStack {
-                    Button("Reload") { Task { await loadPty() } }.disabled(ptyBusy)
-                    Spacer()
-                    Button("Save") { Task { await savePty(register: false) } }.disabled(ptyBusy)
-                    Button("Register") { Task { await savePty(register: true) } }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(ptyBusy || draft.gatewayUrl.isEmpty || draft.publicUrl.isEmpty)
-                }
-            } footer: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Status: \(ptyStatus?.registered == true ? "registered" : "not registered") · Last success: \(ptyStatus?.lastSuccessAt ?? "never")")
-                    if let error = ptyStatus?.lastError { Text(error).foregroundStyle(.red) }
-                    if !ptyMessage.isEmpty { Text(ptyMessage) }
-                }
-            }
-        } else {
-            Section {
-                Text(ptyBusy ? "Loading PTY config…" : (ptyMessage.isEmpty ? "PTY config unavailable." : ptyMessage))
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
     // MARK: Gateway
 
     @ViewBuilder private var gatewaySections: some View {
@@ -239,10 +192,12 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 8) {
                         Text(backend.label).fontWeight(.medium)
-                        Text(backend.decodingStatusFallback().rawValue)
-                            .font(.caption2).foregroundStyle(.secondary)
-                            .padding(.horizontal, 6).padding(.vertical, 1)
-                            .background(.quaternary, in: Capsule())
+                        let status = backend.decodingStatusFallback()
+                        Text(status.rawValue.capitalized)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(statusColor(status))
+                            .padding(.horizontal, 8).padding(.vertical, 2)
+                            .background(statusColor(status).opacity(0.18), in: Capsule())
                     }
                     Text("\(backend.id) · \(backend.transport ?? "transport?") · \(backend.source ?? "registry")")
                         .font(.caption.monospaced()).foregroundStyle(.secondary)
@@ -278,32 +233,13 @@ struct SettingsView: View {
     private func hostButtonBinding(_ keyPath: WritableKeyPath<HostButtonSettings, Bool>) -> Binding<Bool> {
         Binding(get: { model.hostButtons[keyPath: keyPath] }, set: { model.hostButtons[keyPath: keyPath] = $0 })
     }
-    private func ptyString(_ keyPath: WritableKeyPath<PtyConfig, String>) -> Binding<String> {
-        Binding(get: { ptyDraft?[keyPath: keyPath] ?? "" }, set: { ptyDraft?[keyPath: keyPath] = $0 })
-    }
 
-    private func loadPty() async {
-        guard let endpoint = model.endpoint else { ptyMessage = "No gateway."; return }
-        ptyBusy = true; ptyMessage = ""
-        defer { ptyBusy = false }
-        do {
-            let payload = try await GatewayClient(endpoint: endpoint).ptyConfig(backendId: selectedBackendId)
-            ptyDraft = payload.config; ptyStatus = payload.status
-        } catch {
-            ptyDraft = nil; ptyMessage = error.localizedDescription
-        }
-    }
-
-    private func savePty(register: Bool) async {
-        guard let endpoint = model.endpoint, let draft = ptyDraft else { return }
-        ptyBusy = true; ptyMessage = ""
-        defer { ptyBusy = false }
-        do {
-            let payload = try await GatewayClient(endpoint: endpoint).writePtyConfig(backendId: selectedBackendId, draft, register: register)
-            ptyDraft = payload.config; ptyStatus = payload.status
-            ptyMessage = register ? "Registered with gateway." : "Saved."
-        } catch {
-            ptyMessage = error.localizedDescription
+    private func statusColor(_ status: BackendMachine.Status) -> Color {
+        switch status {
+        case .online: return .green
+        case .stale: return .orange
+        case .offline: return .red
+        case .unknown: return .gray
         }
     }
 

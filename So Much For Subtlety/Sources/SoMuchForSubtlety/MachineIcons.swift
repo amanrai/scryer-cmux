@@ -39,6 +39,6 @@ struct MachineIconGlyph: View {
             .symbolRenderingMode(.monochrome)
             .frame(width: compact ? 20 : 26, height: compact ? 18 : 22)
             .background(selected ? Color.accentColor.opacity(0.28) : Color.secondary.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: compact ? 4 : 5))
+                        in: RoundedRectangle(cornerRadius: compact ? 3 : 4))
     }
 }

@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 #if os(macOS)
 import AppKit
 #else
@@ -28,7 +27,6 @@ struct AttachedView: View {
     @State private var renameDraft = ""
     #if os(iOS)
     @State private var keyboardVisibility: KeyboardVisibility = .shown   // iPad floating keyboard
-    @State private var lastKeyboardTouch = Date()                        // for 30s auto-faint
     @AppStorage("smfs.kbOffsetX") private var kbOffsetX: Double = 0      // remembered drag position
     @AppStorage("smfs.kbOffsetY") private var kbOffsetY: Double = 0
     private var keyboardOffset: Binding<CGSize> {
@@ -71,13 +69,20 @@ struct AttachedView: View {
                         Divider()
                     }
                     terminal
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.black.opacity(0.22), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(.black.opacity(0.22), lineWidth: 1))
                         .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 8)
                         #if os(iOS)
+                        // Scrolling the terminal dims the keyboard to faint; a single tap restores
+                        // it from faint; a double tap raises it when it's been hidden.
+                        .simultaneousGesture(DragGesture(minimumDistance: 14).onChanged { _ in
+                            if keyboardVisibility == .shown { withAnimation(.easeOut(duration: 0.25)) { keyboardVisibility = .faint } }
+                        })
+                        .simultaneousGesture(TapGesture().onEnded {
+                            if keyboardVisibility == .faint { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown } }
+                        })
                         .simultaneousGesture(TapGesture(count: 2).onEnded {
-                            lastKeyboardTouch = Date()
-                            withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown }
+                            if keyboardVisibility == .hidden { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown } }
                         })
                         #endif
                 }
@@ -96,15 +101,15 @@ struct AttachedView: View {
                         onSpecialKey: { controller.type($0, modifiers: $1) },
                         onHide: { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .hidden } },
                         onActivate: {
-                            lastKeyboardTouch = Date()
                             if keyboardVisibility == .faint { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown } }
                         },
-                        theme: model.theme.terminal,
+                        theme: AppTheme.matte.terminal,   // keyboard is always matte black, every theme
                         containerHeight: geo.size.height,
                         topInset: chromeMinHeight + 12,
                         position: keyboardOffset
                     )
-                    .opacity(keyboardVisibility == .faint ? 0.28 : 1)
+                    .environment(\.colorScheme, .dark)   // keep handle/picker legible on the black surface
+                    .opacity(keyboardVisibility == .faint ? 0.05 : 1)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -168,14 +173,6 @@ struct AttachedView: View {
         // Re-scan terminal state for the producer marker whenever the active pane
         // changes, so "listening" reflects the terminal we just switched to.
         .onChange(of: selectedPaneId) { _, _ in activeController?.refreshProducerState() }
-        #if os(iOS)
-        // After 30s with no keyboard interaction, fade it to faint.
-        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
-            if keyboardVisibility == .shown, Date().timeIntervalSince(lastKeyboardTouch) > 30 {
-                withAnimation(.easeOut(duration: 0.35)) { keyboardVisibility = .faint }
-            }
-        }
-        #endif
     }
 
     private var displayMachineName: String {
@@ -214,13 +211,15 @@ struct AttachedView: View {
 
             #if os(iOS)
             Button {
-                lastKeyboardTouch = Date()
-                withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = keyboardVisibility.next }
+                withAnimation(.easeOut(duration: 0.18)) {
+                    keyboardVisibility = (keyboardVisibility == .hidden) ? .shown : .hidden
+                }
             } label: {
-                Image(systemName: keyboardVisibility.icon).font(.system(size: chromeGlyph))
+                Image(systemName: keyboardVisibility == .hidden ? "keyboard" : "keyboard.chevron.compact.down")
+                    .font(.system(size: chromeGlyph))
             }
             .buttonStyle(.borderless)
-            .help("Keyboard: \(keyboardVisibility.label)")
+            .help(keyboardVisibility == .hidden ? "Show keyboard" : "Hide keyboard")
             #endif
 
             Button(action: { showingSettings = true }) { Image(systemName: "gearshape").font(.system(size: chromeGlyph)) }
@@ -247,7 +246,7 @@ struct AttachedView: View {
                     // response is actually needed.
                     .foregroundStyle(listening ? Color.white : Color.secondary)
                     .padding(.horizontal, 5).padding(.vertical, 3)
-                    .background(listening ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+                    .background(listening ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 4))
                     .overlay(alignment: .topTrailing) {
                         if pending { Circle().fill(Color.red).frame(width: 6, height: 6).offset(x: 2, y: -2) }
                     }
@@ -374,7 +373,7 @@ struct AttachedView: View {
         .padding(.leading, 8).padding(.trailing, 3).padding(.vertical, 3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isSelected ? Color.accentColor.opacity(0.25) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 6))
+                    in: RoundedRectangle(cornerRadius: 4))
         .contentShape(Rectangle())
         .onTapGesture { selectWorkspace(workspace) }
         .onHover { hovering in hoveredWorkspaceId = hovering ? workspace.id : (hoveredWorkspaceId == workspace.id ? nil : hoveredWorkspaceId) }
@@ -546,31 +545,9 @@ extension Color {
 }
 
 #if os(iOS)
-/// Tri-state for the floating keyboard: fully shown, faint (visible + still usable but
-/// out of the way), or hidden. The top-bar button cycles through them.
+/// Floating-keyboard visibility. `shown`/`hidden` are toggled by the top-bar button;
+/// `faint` is a transient dimmed state entered while scrolling and cleared by a tap.
 enum KeyboardVisibility {
     case shown, faint, hidden
-
-    var next: KeyboardVisibility {
-        switch self {
-        case .shown: return .faint
-        case .faint: return .hidden
-        case .hidden: return .shown
-        }
-    }
-    var icon: String {
-        switch self {
-        case .shown: return "keyboard.fill"
-        case .faint: return "keyboard"
-        case .hidden: return "keyboard.chevron.compact.down"
-        }
-    }
-    var label: String {
-        switch self {
-        case .shown: return "shown"
-        case .faint: return "faint"
-        case .hidden: return "hidden"
-        }
-    }
 }
 #endif

@@ -11,58 +11,47 @@ struct MachinePickerSheet: View {
     private var selectable: [BackendMachine] { model.backends.filter(\.isSelectable) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    if selectable.isEmpty {
-                        Text("No machines online")
-                            .font(.system(size: 12)).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity).padding(.vertical, 30)
-                    }
-                    ForEach(selectable) { backend in
-                        Button {
-                            onSelect(backend)
-                            dismiss()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Circle().fill(.green).frame(width: 8, height: 8)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(model.machineName(for: backend.id) ?? backend.label).font(.system(size: 13, weight: .medium))
-                                    Text(backend.id).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if backend.id == currentBackendId {
-                                    Image(systemName: "checkmark").font(.system(size: 12, weight: .semibold)).foregroundStyle(.tint)
-                                }
-                            }
-                            .padding(12)
-                            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
+        List {
+            Section {
+                if selectable.isEmpty {
+                    Text("No machines online").foregroundStyle(.secondary)
                 }
-                .padding(16)
+                ForEach(selectable) { backend in
+                    Button {
+                        onSelect(backend)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Circle().fill(.green).frame(width: 8, height: 8)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model.machineName(for: backend.id) ?? backend.label)
+                                Text(backend.id).font(.caption.monospaced()).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if backend.id == currentBackendId {
+                                Image(systemName: "checkmark").foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
-            Divider()
-
-            HStack {
-                Button {
+            Section {
+                Button(role: .destructive) {
                     model.disconnect()
                     dismiss()
                 } label: {
-                    Label("Change gateway…", systemImage: "network").font(.system(size: 12))
+                    Label("Change gateway…", systemImage: "network")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                Spacer()
+            } footer: {
                 if let endpoint = model.endpoint {
-                    Text(endpoint.displayHost).font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+                    Text("Connected to \(endpoint.displayHost)").font(.caption.monospaced())
                 }
             }
-            .padding(.horizontal, 20).padding(.vertical, 12)
         }
+        .modalList()
         .modalChrome("Switch Machine", systemImage: "desktopcomputer", width: 440, height: 400)
     }
 }

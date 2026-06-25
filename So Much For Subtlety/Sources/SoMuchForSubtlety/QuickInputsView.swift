@@ -40,38 +40,27 @@ struct QuickInputsView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(group.title.uppercased())
-                                .font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.tertiary)
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
-                                ForEach(group.items) { item in
-                                    Button { onSend(item.data) } label: {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: item.symbol).frame(width: 16)
-                                            VStack(alignment: .leading, spacing: 1) {
-                                                Text(item.label).font(.system(size: 12, weight: .medium))
-                                                Text(item.detail).font(.system(size: 10)).foregroundStyle(.secondary)
-                                            }
-                                            Spacer(minLength: 0)
-                                        }
-                                        .padding(.horizontal, 10).padding(.vertical, 7)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
+        List {
+            ForEach(groups) { group in
+                Section(group.title) {
+                    ForEach(group.items) { item in
+                        Button { onSend(item.data) } label: {
+                            Label {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(item.label)
+                                    Text(item.detail).font(.caption).foregroundStyle(.secondary)
                                 }
+                            } icon: {
+                                Image(systemName: item.symbol).foregroundStyle(.tint)
                             }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                 }
-                .padding(18)
             }
         }
+        .modalList()
         .modalChrome("Quick Inputs", systemImage: "keyboard", width: 440, height: 420)
     }
 }

@@ -112,7 +112,7 @@ private struct BackendRow: View {
                 }
             }
             .padding(12)
-            .background(.quaternary.opacity(disabled ? 0.12 : 0.3), in: RoundedRectangle(cornerRadius: 10))
+            .background(.quaternary.opacity(disabled ? 0.12 : 0.3), in: RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
         .disabled(disabled)

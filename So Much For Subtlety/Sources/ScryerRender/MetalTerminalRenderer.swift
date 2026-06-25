@@ -12,6 +12,7 @@ final class MetalTerminalRenderer {
     private let queue: MTLCommandQueue
     private let solidPipeline: MTLRenderPipelineState
     private let glyphPipeline: MTLRenderPipelineState
+    private let colorGlyphPipeline: MTLRenderPipelineState
     private let atlas: GlyphAtlas
 
     var cellWidth: Int { atlas.cellWidth }
@@ -38,7 +39,7 @@ final class MetalTerminalRenderer {
         self.queue = queue
         self.atlas = atlas
 
-        func pipeline(_ vertex: String, _ fragment: String) throws -> MTLRenderPipelineState {
+        func pipeline(_ vertex: String, _ fragment: String, premultiplied: Bool = false) throws -> MTLRenderPipelineState {
             let desc = MTLRenderPipelineDescriptor()
             desc.vertexFunction = library.makeFunction(name: vertex)
             desc.fragmentFunction = library.makeFunction(name: fragment)
@@ -47,8 +48,9 @@ final class MetalTerminalRenderer {
             attachment.isBlendingEnabled = true
             attachment.rgbBlendOperation = .add
             attachment.alphaBlendOperation = .add
-            attachment.sourceRGBBlendFactor = .sourceAlpha
-            attachment.sourceAlphaBlendFactor = .sourceAlpha
+            // Color emoji are stored premultiplied; mono/solid use straight alpha.
+            attachment.sourceRGBBlendFactor = premultiplied ? .one : .sourceAlpha
+            attachment.sourceAlphaBlendFactor = premultiplied ? .one : .sourceAlpha
             attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
             attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
             return try device.makeRenderPipelineState(descriptor: desc)
@@ -57,6 +59,7 @@ final class MetalTerminalRenderer {
         do {
             self.solidPipeline = try pipeline("solid_vertex", "solid_fragment")
             self.glyphPipeline = try pipeline("glyph_vertex", "glyph_fragment")
+            self.colorGlyphPipeline = try pipeline("glyph_vertex", "color_glyph_fragment", premultiplied: true)
         } catch {
             return nil
         }
@@ -117,17 +120,24 @@ final class MetalTerminalRenderer {
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: solids.count)
         }
 
-        // --- glyphs ---
+        // --- glyphs (mono text → R8 atlas, color emoji → BGRA atlas) ---
         var glyphs: [GlyphVertex] = []
+        var colorGlyphs: [GlyphVertex] = []
         glyphs.reserveCapacity(snapshot.cells.count * 6)
         for cell in snapshot.cells where !cell.text.isEmpty {
             let key = GlyphAtlas.Key(text: cell.text, bold: cell.flags.contains(.bold), italic: cell.flags.contains(.italic))
             guard let entry = atlas.entry(for: key) else { continue }
-            // Inverse the glyph under the block cursor so it stays readable.
-            let isCursorCell = cursorOn && cell.col == snapshot.cursorCol && cell.row == snapshot.cursorRow
-            let color = isCursorCell ? snapshot.defaultBackground.simd : cell.foreground.simd
-            appendGlyphQuad(&glyphs, x: xInset + Float(cell.col) * cw, y: Float(cell.row) * ch, w: cw, h: ch,
-                            uv: entry, color: color)
+            let x = xInset + Float(cell.col) * cw
+            let y = Float(cell.row) * ch
+            if entry.isColor {
+                // Emoji are drawn as-is, spanning their (1–2 cell) width.
+                appendGlyphQuad(&colorGlyphs, x: x, y: y, w: cw * Float(entry.cellsWide), h: ch, uv: entry, color: SIMD4<Float>(repeating: 1))
+            } else {
+                // Inverse the glyph under the block cursor so it stays readable.
+                let isCursorCell = cursorOn && cell.col == snapshot.cursorCol && cell.row == snapshot.cursorRow
+                let color = isCursorCell ? snapshot.defaultBackground.simd : cell.foreground.simd
+                appendGlyphQuad(&glyphs, x: x, y: y, w: cw, h: ch, uv: entry, color: color)
+            }
         }
 
         if !glyphs.isEmpty,
@@ -137,6 +147,15 @@ final class MetalTerminalRenderer {
             encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)
             encoder.setFragmentTexture(atlas.texture, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: glyphs.count)
+        }
+
+        if !colorGlyphs.isEmpty,
+           let buffer = device.makeBuffer(bytes: colorGlyphs, length: MemoryLayout<GlyphVertex>.stride * colorGlyphs.count, options: .storageModeShared) {
+            encoder.setRenderPipelineState(colorGlyphPipeline)
+            encoder.setVertexBuffer(buffer, offset: 0, index: 0)
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<RenderUniforms>.stride, index: 1)
+            encoder.setFragmentTexture(atlas.colorTexture, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: colorGlyphs.count)
         }
 
         _ = scale
@@ -248,6 +267,14 @@ final class MetalTerminalRenderer {
         constexpr sampler s(filter::linear);
         float a = atlas.sample(s, in.uv).r;
         return float4(in.color.rgb, in.color.a * a * 0.88);
+    }
+
+    // Color emoji: the atlas already holds premultiplied BGRA (sampled as RGBA), so
+    // emit it directly and let the premultiplied blend composite it.
+    fragment float4 color_glyph_fragment(GlyphOut in [[stage_in]],
+                                         texture2d<float> atlas [[texture(0)]]) {
+        constexpr sampler s(filter::linear);
+        return atlas.sample(s, in.uv);
     }
     """
 }

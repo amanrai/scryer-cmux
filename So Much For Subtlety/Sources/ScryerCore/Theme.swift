@@ -38,7 +38,7 @@ public struct TerminalTheme: Sendable, Equatable {
 
 /// The selectable app themes.
 public enum AppTheme: String, Sendable, CaseIterable, Identifiable {
-    case oneDark, oneLight, tokyoNight, dracula, catppuccin, nord, synthwave
+    case oneDark, oneLight, matte, tokyoNight, dracula, catppuccin, nord, synthwave
 
     public var id: String { rawValue }
 
@@ -46,6 +46,7 @@ public enum AppTheme: String, Sendable, CaseIterable, Identifiable {
         switch self {
         case .oneDark: return "One Dark"
         case .oneLight: return "One Light"
+        case .matte: return "Matte Black"
         case .tokyoNight: return "Tokyo Night"
         case .dracula: return "Dracula"
         case .catppuccin: return "Catppuccin"
@@ -66,6 +67,10 @@ public enum AppTheme: String, Sendable, CaseIterable, Identifiable {
             return Self.make(fg: "#383A42", bg: "#FAFAFA", cursor: "#526EFF", sel: "#D3D7DE", chrome: "#E8E8EA", ansi: [
                 "#383A42", "#E45649", "#50A14F", "#C18401", "#4078F2", "#A626A4", "#0184BC", "#A0A1A7",
                 "#4F525E", "#E45649", "#50A14F", "#C18401", "#4078F2", "#A626A4", "#0184BC", "#FFFFFF"])
+        case .matte:
+            return Self.make(fg: "#FFFFFF", bg: "#0A0A0A", cursor: "#FFFFFF", sel: "#2A2A2A", chrome: "#000000", ansi: [
+                "#0A0A0A", "#FF5C57", "#5AF78E", "#F3F99D", "#57C7FF", "#FF6AC1", "#9AEDFE", "#F1F1F0",
+                "#686868", "#FF5C57", "#5AF78E", "#F3F99D", "#57C7FF", "#FF6AC1", "#9AEDFE", "#FFFFFF"])
         case .tokyoNight:
             return Self.make(fg: "#C0CAF5", bg: "#1A1B26", cursor: "#C0CAF5", sel: "#283457", chrome: "#16161E", ansi: [
                 "#15161E", "#F7768E", "#9ECE6A", "#E0AF68", "#7AA2F7", "#BB9AF7", "#7DCFFF", "#A9B1D6",

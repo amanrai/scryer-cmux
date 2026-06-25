@@ -54,8 +54,8 @@ struct FloatingKeyboardView: View {
             }
         }
         .padding(8)
-        .background(surfaceColor, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(fgColor.opacity(0.12)))
+        .background(surfaceColor, in: RoundedRectangle(cornerRadius: 5))
+        .overlay(RoundedRectangle(cornerRadius: 5).stroke(fgColor.opacity(0.12)))
         .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
         .frame(maxWidth: 1100)
         .background(
@@ -192,7 +192,7 @@ struct FloatingKeyboardView: View {
                 .font(.system(size: 20, weight: .medium, design: label.count == 1 ? .monospaced : .default))
                 .frame(width: width, height: keyHeight)
                 .background(active ? Color.accentColor.opacity(0.8) : fgColor.opacity(0.10),
-                            in: RoundedRectangle(cornerRadius: 8))
+                            in: RoundedRectangle(cornerRadius: 4))
                 .foregroundStyle(active ? Color.white : fgColor)
                 .contentShape(Rectangle())
         }
@@ -254,9 +254,9 @@ struct FloatingKeyboardView: View {
         .tmux("%", "split |"), .tmux("\"", "split —"), .tmux("z", "zoom"), .tmux("o", "cycle"),
         .tmux("d", "detach"), .tmux("[", "copy"), .tmux("x", "kill"), .tmux(",", "rename"),
     ]
-    // pi slash-commands (text + Enter). Adjust to pi's real command set.
+    // pi slash-commands (text + Enter).
     private let piCommands: [Macro] = [
-        .command("/clear"), .command("/help"), .command("/resume"), .command("/compact"), .command("/undo"),
+        .command("/comms-test"), .command("/comms-test-update"), .command("/tree"), .command("/reload"),
     ]
 
     private var commands: some View {
@@ -276,27 +276,27 @@ struct FloatingKeyboardView: View {
     }
 
     private var piView: some View {
-        macroSection("pi", piCommands)
+        macroSection("pi", piCommands, fontSize: 13)
             .padding(.horizontal, 2)
             .frame(height: contentHeight, alignment: .top)
     }
 
-    private func macroSection(_ title: String, _ macros: [Macro]) -> some View {
+    private func macroSection(_ title: String, _ macros: [Macro], fontSize: CGFloat = 16) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.system(size: 10, weight: .semibold)).tracking(0.5).foregroundStyle(.secondary)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 6)], alignment: .leading, spacing: 6) {
-                ForEach(macros) { macro in macroButton(macro) }
+                ForEach(macros) { macro in macroButton(macro, fontSize: fontSize) }
             }
         }
     }
 
-    private func macroButton(_ macro: Macro) -> some View {
+    private func macroButton(_ macro: Macro, fontSize: CGFloat = 16) -> some View {
         Button { run(macro) } label: {
             Text(macro.label)
-                .font(.system(size: 16, weight: .medium, design: macro.label.hasPrefix("⌃") ? .monospaced : .default))
+                .font(.system(size: fontSize, weight: .medium, design: macro.label.hasPrefix("⌃") ? .monospaced : .default))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, minHeight: 50)
-                .background(fgColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                .background(fgColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 4))
                 .foregroundStyle(fgColor)
                 .contentShape(Rectangle())
         }

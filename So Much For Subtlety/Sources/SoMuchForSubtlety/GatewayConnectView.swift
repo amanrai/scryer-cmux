@@ -26,7 +26,7 @@ struct GatewayConnectView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 14, design: .monospaced))
                     .padding(10)
-                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 4))
                     .focused($fieldFocused)
                     .onSubmit(connect)
 
