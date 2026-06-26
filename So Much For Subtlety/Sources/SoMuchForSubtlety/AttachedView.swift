@@ -62,6 +62,8 @@ struct AttachedView: View {
         #endif
     }
     private var chromeGlyph: CGFloat { platformValue(17, mac: 11) }
+    private var backendNameSize: CGFloat { platformValue(16, mac: 12) }
+    private var backendIconFrame: CGSize { CGSize(width: chromeGlyph + 9, height: chromeGlyph + 7) }
     private var chromeSpacing: CGFloat { platformValue(18, mac: 8) }
     private var chromeMinHeight: CGFloat { platformValue(48, mac: 32) }
 
@@ -113,20 +115,22 @@ struct AttachedView: View {
                         // Dedicated, mostly-transparent voice trigger floating on the terminal's
                         // center-right. Large hit target; opens the dictation modal.
                         .overlay(alignment: .trailing) {
-                            Button(action: { showingDictation = true }) {
-                                Image(systemName: terminalConnected ? "mic.fill" : "mic.slash")
-                                    .font(.system(size: 22, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.85))
-                                    .frame(width: 60, height: 60)            // generous tap target
-                                    .background(.black.opacity(0.22), in: Circle())
-                                    .overlay(Circle().stroke(.white.opacity(0.18)))
-                                    .contentShape(Circle())
+                            if model.hostButtons.audioInput {
+                                Button(action: { showingDictation = true }) {
+                                    Image(systemName: terminalConnected ? "mic.fill" : "mic.slash")
+                                        .font(.system(size: 22, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.85))
+                                        .frame(width: 60, height: 60)            // generous tap target
+                                        .background(.black.opacity(0.22), in: Circle())
+                                        .overlay(Circle().stroke(.white.opacity(0.18)))
+                                        .contentShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!terminalConnected)             // no dictating into a dead socket
+                                .opacity(terminalConnected ? 1 : 0.4)
+                                .padding(.trailing, 12)
+                                .accessibilityLabel("Voice dictation")
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!terminalConnected)             // no dictating into a dead socket
-                            .opacity(terminalConnected ? 1 : 0.4)
-                            .padding(.trailing, 12)
-                            .accessibilityLabel("Voice dictation")
                         }
                         #endif
                 }
@@ -167,6 +171,15 @@ struct AttachedView: View {
         .ignoresSafeArea(.container, edges: .top)   // top bar shares the traffic-light row
         #endif
         .task(id: backend.id) { await loadState() }
+        // App-wide interaction pull: every ~1.5s poll the interaction service for every
+        // active producer across this machine's open terminals, storing deduped. Not
+        // surfaced (red dot / auto-present are off) — the display flow is being reworked.
+        .task {
+            while !Task.isCancelled {
+                await model.interactions.poll(producers: store.activeProducers)
+                try? await Task.sleep(for: .milliseconds(1500))
+            }
+        }
         .onDisappear { store.teardown() }
         .onChange(of: model.fontSize) { _, newValue in store.setFontSize(CGFloat(newValue)) }
         .onChange(of: model.theme) { _, newTheme in store.setTheme(newTheme.terminal) }
@@ -181,30 +194,40 @@ struct AttachedView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(backendId: backend.id, defaultMachineName: state?.hostName ?? backend.label).environment(model)
         }
-        .sheet(isPresented: $showingMachinePicker) {
-            MachinePickerSheet(currentBackendId: backend.id) { selected in
-                if selected.id != backend.id { model.select(selected) }
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showingMachinePicker) {
+            CenteredModalCover(isPresented: $showingMachinePicker, width: 560) {
+                MachinePickerSheet(currentBackendId: backend.id, onSelect: { selected in
+                    if selected.id != backend.id { model.select(selected) }
+                }, onKanbaner: { model.showingKanbaner = true })
+                .environment(model)
             }
+            .presentationBackground(.clear)
+        }
+        #else
+        .sheet(isPresented: $showingMachinePicker) {
+            MachinePickerSheet(currentBackendId: backend.id, onSelect: { selected in
+                if selected.id != backend.id { model.select(selected) }
+            }, onKanbaner: { model.showingKanbaner = true })
             .environment(model)
         }
+        #endif
         .sheet(isPresented: $showingQuickInputs) {
             QuickInputsView { text in activeController?.send(text) }
         }
-        .sheet(isPresented: $showingInteraction) {
-            if let controller = activeController, let request = controller.pendingInteraction {
-                InteractionModalView(
-                    request: request,
-                    updates: controller.updates,
-                    onRespond: { controller.respondToInteraction($0) },
-                    onDismissRequest: { controller.dismissInteraction() }
-                )
-            } else {
-                noInteractionPlaceholder
-            }
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showingInteraction) {
+            CenteredModalCover(isPresented: $showingInteraction, width: 560) { interactionModalContent }
+                .presentationBackground(.clear)
         }
-        .sheet(isPresented: $showingActivity, onDismiss: { activeController?.activityVisible = false }) {
-            ActivityModalView(updates: activeController?.updates ?? [])
+        .fullScreenCover(isPresented: $showingActivity, onDismiss: { activeController?.activityVisible = false }) {
+            CenteredModalCover(isPresented: $showingActivity, width: 560) { activityModalContent }
+                .presentationBackground(.clear)
         }
+        #else
+        .sheet(isPresented: $showingInteraction) { interactionModalContent }
+        .sheet(isPresented: $showingActivity, onDismiss: { activeController?.activityVisible = false }) { activityModalContent }
+        #endif
         #if os(iOS)
         // Voice dictation: a short panel that fills an editable transcript, then injects it
         // into the terminal and submits (text + Enter) on Send. Uses the same raw-input
@@ -242,14 +265,8 @@ struct AttachedView: View {
             Button("Save") { Task { await renameWorkspace() } }
             Button("Cancel", role: .cancel) { renamingWorkspaceId = nil }
         }
-        // Surface a freshly-arrived interaction on *every* frame, the way gateway-ui
-        // does (driven by an epoch counter, not the request id, so a re-pushed id
-        // still re-presents).
-        .onChange(of: activeController?.interactionEpoch) { _, _ in
-            if activeController?.pendingInteraction != nil, model.hostButtons.interaction {
-                showingInteraction = true
-            }
-        }
+        // Auto-present is intentionally OFF — interactions are pulled + deduped app-wide
+        // (InteractionStore) and surfaced through a reworked flow, not auto-shown here.
         // Re-scan terminal state for the producer marker whenever the active pane
         // changes, so "listening" reflects the terminal we just switched to.
         .onChange(of: selectedPaneId) { _, _ in activeController?.refreshProducerState() }
@@ -286,9 +303,9 @@ struct AttachedView: View {
             Button(action: { showingMachinePicker = true }) {
                 HStack(spacing: 5) {
                     ForEach(model.icons(for: backend.id), id: \.self) { iconId in
-                        MachineIconGlyph(id: iconId, selected: true, compact: true)
+                        MachineIconGlyph(id: iconId, selected: true, compact: true, glyphSize: chromeGlyph, frameSize: backendIconFrame)
                     }
-                    Text(displayMachineName).font(.system(size: 12, weight: .medium))
+                    Text(displayMachineName).font(.system(size: backendNameSize, weight: .medium))
                         .foregroundStyle(machineNameColor ?? Color.primary)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 8)).foregroundStyle(.tertiary)
                 }
@@ -314,9 +331,11 @@ struct AttachedView: View {
             .help(keyboardVisibility == .hidden ? "Show keyboard" : "Hide keyboard")
             #endif
 
-            Button(action: { Task { await refresh() } }) { Image(systemName: "arrow.clockwise").font(.system(size: chromeGlyph)) }
-                .buttonStyle(.borderless)
-                .help("Refresh (reconnect after suspend)")
+            if model.hostButtons.reconnect {
+                Button(action: { Task { await refresh() } }) { Image(systemName: "arrow.clockwise").font(.system(size: chromeGlyph)) }
+                    .buttonStyle(.borderless)
+                    .help("Reconnect")
+            }
 
             Button(action: { showingSettings = true }) { Image(systemName: "gearshape").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless)
@@ -334,21 +353,18 @@ struct AttachedView: View {
 
     @ViewBuilder private var hostActions: some View {
         if model.hostButtons.interaction {
-            let pending = activeController?.pendingInteraction != nil
             let listening = activeController?.hasProducer == true
+            // Interaction surfacing is being reworked: no red-dot "needs response" badge and
+            // no auto-present. Interactions are now pulled + deduped app-wide (see
+            // InteractionStore); this button just opens the panel manually for now.
             Button { showingInteraction = true } label: {
                 Image(systemName: "bubble.left.and.bubble.right").font(.system(size: chromeGlyph))
-                    // Filled when listening (a producer is attached); red dot when a
-                    // response is actually needed.
                     .foregroundStyle(listening ? Color.white : Color.secondary)
                     .padding(.horizontal, 5).padding(.vertical, 3)
                     .background(listening ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 4))
-                    .overlay(alignment: .topTrailing) {
-                        if pending { Circle().fill(Color.red).frame(width: 6, height: 6).offset(x: 2, y: -2) }
-                    }
             }
             .buttonStyle(.borderless)
-            .help(pending ? "Interaction needed" : (listening ? "Listening for interactions" : "Interaction"))
+            .help(listening ? "Listening for interactions" : "Interaction")
         }
         if model.hostButtons.agentUpdates {
             let unread = activeController?.unreadUpdates ?? 0
@@ -392,6 +408,33 @@ struct AttachedView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(width: 360, height: 220).padding()
+    }
+
+    @ViewBuilder private var interactionModalContent: some View {
+        if let controller = activeController, let from = controller.producerFrom {
+            // Newest undismissed interaction after the newest dismissed one (the only one
+            // to surface), plus *all* agent notifications for this pane.
+            let request = model.interactions.actionableInteraction(for: from)
+            InteractionModalView(
+                request: request,
+                updates: model.interactions.updates(for: from),
+                onRespond: { response in
+                    if let request {
+                        controller.respond(to: request, response: response)
+                        model.interactions.dismiss(id: request.id, from: from)
+                    }
+                },
+                onDismissRequest: {
+                    if let request { model.interactions.dismiss(id: request.id, from: from) }
+                }
+            )
+        } else {
+            noInteractionPlaceholder
+        }
+    }
+
+    private var activityModalContent: some View {
+        ActivityModalView(updates: activeController?.updates ?? [])
     }
 
     // Resolve (creating if needed) the controller for the selected pane. Using

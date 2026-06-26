@@ -42,6 +42,12 @@
 		EC7E61C3AA8F98EA054D0CE3 /* MachinePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D728DD63FA02C46B8A1492DC /* MachinePickerSheet.swift */; };
 		ECF4C5E10BD159CD9C422BB0 /* BackendPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE9E6C0165CE1B2ED1F538A /* BackendPickerView.swift */; };
 		BBBB0000000000000000F0A3 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = BBBB0000000000000000F0A2 /* WhisperKit */; };
+		CB0000000000000000001002 /* KanbanerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000001001 /* KanbanerModel.swift */; };
+		CB0000000000000000001003 /* KanbanerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000001001 /* KanbanerModel.swift */; };
+		CB0000000000000000002002 /* KanbanerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000002001 /* KanbanerView.swift */; };
+		CB0000000000000000002003 /* KanbanerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000002001 /* KanbanerView.swift */; };
+		CB0000000000000000003002 /* KanbanerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000003001 /* KanbanerDetailView.swift */; };
+		CB0000000000000000003003 /* KanbanerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000003001 /* KanbanerDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +68,9 @@
 		F50ED929F9E2500DB8992104 /* AttachedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachedView.swift; sourceTree = "<group>"; };
 		FE667B3B9FC5CA7F1E3CCC78 /* FloatingKeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingKeyboardView.swift; sourceTree = "<group>"; };
 		AAAA000000000000000000F1 /* VoiceInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInput.swift; sourceTree = "<group>"; };
+		CB0000000000000000001001 /* KanbanerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanbaner/KanbanerModel.swift; sourceTree = "<group>"; };
+		CB0000000000000000002001 /* KanbanerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanbaner/KanbanerView.swift; sourceTree = "<group>"; };
+		CB0000000000000000003001 /* KanbanerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanbaner/KanbanerDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +132,9 @@
 				620B52C8E03CD0FFACADECEF /* TerminalController.swift */,
 				B87BC2AD17F2FBDF30350EAE /* TerminalView.swift */,
 				AAAA000000000000000000F1 /* VoiceInput.swift */,
+				CB0000000000000000001001 /* KanbanerModel.swift */,
+				CB0000000000000000002001 /* KanbanerView.swift */,
+				CB0000000000000000003001 /* KanbanerDetailView.swift */,
 			);
 			path = SoMuchForSubtlety;
 			sourceTree = "<group>";
@@ -250,6 +262,9 @@
 				73592673CB932B6881492E6F /* TerminalController.swift in Sources */,
 				46D6CD56354C3517D27FA0D6 /* TerminalView.swift in Sources */,
 				AAAA000000000000000000F2 /* VoiceInput.swift in Sources */,
+				CB0000000000000000001002 /* KanbanerModel.swift in Sources */,
+				CB0000000000000000002002 /* KanbanerView.swift in Sources */,
+				CB0000000000000000003002 /* KanbanerDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,6 +286,9 @@
 				16414CD61D39C49D709E21CB /* TerminalController.swift in Sources */,
 				39DECAE99EF1F7A889F562B0 /* TerminalView.swift in Sources */,
 				AAAA000000000000000000F3 /* VoiceInput.swift in Sources */,
+				CB0000000000000000001003 /* KanbanerModel.swift in Sources */,
+				CB0000000000000000002003 /* KanbanerView.swift in Sources */,
+				CB0000000000000000003003 /* KanbanerDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

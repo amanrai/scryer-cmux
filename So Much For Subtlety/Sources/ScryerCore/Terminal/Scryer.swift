@@ -181,4 +181,61 @@ public struct PmTask: Decodable, Identifiable, Sendable {
     public let status: String?
     public let updated_at: String?
     public let description_md: String?
+    // Board fields (all optional so the existing Scryer picker decode is unaffected).
+    public let display_order: Int?
+    public let task_type_id: String?
+    public let parent_task_id: String?
+    public let project_id: String?
+    public let tags: [PmTag]?
+
+    /// Copy with selected fields replaced — for optimistic board updates (drag/reorder)
+    /// before the server round-trip lands.
+    public func with(status newStatus: String? = nil, displayOrder newOrder: Int? = nil,
+                     projectId newProject: String? = nil) -> PmTask {
+        PmTask(id: id, title: title, status: newStatus ?? status, updated_at: updated_at,
+               description_md: description_md, display_order: newOrder ?? display_order,
+               task_type_id: task_type_id, parent_task_id: parent_task_id,
+               project_id: newProject ?? project_id, tags: tags)
+    }
+}
+
+/// A tag attached to a PM task. JEPM returns objects; some endpoints may return bare strings,
+/// so decode tolerantly.
+public struct PmTag: Decodable, Hashable, Sendable {
+    public let id: String?
+    public let name: String
+
+    public init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(), let name = try? single.decode(String.self) {
+            self.id = nil
+            self.name = name
+            return
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+        self.name = try container.decode(String.self, forKey: .name)
+    }
+    private enum CodingKeys: String, CodingKey { case id, name }
+}
+
+/// A PM task type (category) — carries the swatch color shown on cards.
+public struct PmTaskType: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let color: String?
+    public let is_default: Bool?
+}
+
+/// A comment on a PM task.
+public struct PmComment: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let body_md: String?
+    public let author_role: String?
+    public let author_instance_key: String?
+    public let created_at: String?
+
+    /// Display author: "You" for human, else the instance key.
+    public var authorLabel: String {
+        author_role == "human" ? "You" : (author_instance_key ?? "agent")
+    }
 }

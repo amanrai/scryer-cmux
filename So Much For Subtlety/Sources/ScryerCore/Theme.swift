@@ -38,7 +38,7 @@ public struct TerminalTheme: Sendable, Equatable {
 
 /// The selectable app themes.
 public enum AppTheme: String, Sendable, CaseIterable, Identifiable {
-    case oneDark, oneLight, matte, tokyoNight, dracula, catppuccin, nord, synthwave
+    case oneDark, oneLight, matte, obsidian, tokyoNight, dracula, catppuccin, nord, solarized, solarizedDark, paper, matrix, synthwave
 
     public var id: String { rawValue }
 
@@ -47,15 +47,25 @@ public enum AppTheme: String, Sendable, CaseIterable, Identifiable {
         case .oneDark: return "One Dark"
         case .oneLight: return "One Light"
         case .matte: return "Matte Black"
+        case .obsidian: return "Obsidian"
         case .tokyoNight: return "Tokyo Night"
         case .dracula: return "Dracula"
         case .catppuccin: return "Catppuccin"
         case .nord: return "Nord"
+        case .solarized: return "Solarized"
+        case .solarizedDark: return "Solarized Dark"
+        case .paper: return "Paper"
+        case .matrix: return "Matrix"
         case .synthwave: return "Synthwave"
         }
     }
 
-    public var isDark: Bool { self != .oneLight }
+    public var isDark: Bool {
+        switch self {
+        case .oneLight, .solarized, .paper: return false
+        default: return true
+        }
+    }
 
     public var terminal: TerminalTheme {
         switch self {
@@ -71,6 +81,10 @@ public enum AppTheme: String, Sendable, CaseIterable, Identifiable {
             return Self.make(fg: "#FFFFFF", bg: "#0A0A0A", cursor: "#FFFFFF", sel: "#2A2A2A", chrome: "#000000", ansi: [
                 "#0A0A0A", "#FF5C57", "#5AF78E", "#F3F99D", "#57C7FF", "#FF6AC1", "#9AEDFE", "#F1F1F0",
                 "#686868", "#FF5C57", "#5AF78E", "#F3F99D", "#57C7FF", "#FF6AC1", "#9AEDFE", "#FFFFFF"])
+        case .obsidian:
+            return Self.make(fg: "#E8E6E1", bg: "#111110", cursor: "#D97706", sel: "#2A2A27", chrome: "#1A1A18", ansi: [
+                "#111110", "#DC2626", "#6FCB7F", "#D97706", "#5AA6F0", "#B47BE8", "#4FC9D4", "#E8E6E1",
+                "#5C5A55", "#EF4444", "#86EFAC", "#F59E0B", "#60A5FA", "#C084FC", "#67E8F9", "#FFF8EB"])
         case .tokyoNight:
             return Self.make(fg: "#C0CAF5", bg: "#1A1B26", cursor: "#C0CAF5", sel: "#283457", chrome: "#16161E", ansi: [
                 "#15161E", "#F7768E", "#9ECE6A", "#E0AF68", "#7AA2F7", "#BB9AF7", "#7DCFFF", "#A9B1D6",
@@ -84,9 +98,25 @@ public enum AppTheme: String, Sendable, CaseIterable, Identifiable {
                 "#45475A", "#F38BA8", "#A6E3A1", "#F9E2AF", "#89B4FA", "#F5C2E7", "#94E2D5", "#BAC2DE",
                 "#585B70", "#F38BA8", "#A6E3A1", "#F9E2AF", "#89B4FA", "#F5C2E7", "#94E2D5", "#A6ADC8"])
         case .nord:
-            return Self.make(fg: "#D8DEE9", bg: "#2E3440", cursor: "#D8DEE9", sel: "#434C5E", chrome: "#272C36", ansi: [
-                "#3B4252", "#BF616A", "#A3BE8C", "#EBCB8B", "#81A1C1", "#B48EAD", "#88C0D0", "#E5E9F0",
-                "#4C566A", "#BF616A", "#A3BE8C", "#EBCB8B", "#81A1C1", "#B48EAD", "#8FBCBB", "#ECEFF4"])
+            return Self.make(fg: "#ECEFF4", bg: "#1E2128", cursor: "#5E81AC", sel: "#363D4D", chrome: "#242931", ansi: [
+                "#2E3440", "#BF616A", "#A3BE8C", "#EBCB8B", "#5E81AC", "#B48EAD", "#88C0D0", "#ECEFF4",
+                "#616C7E", "#BF616A", "#A3BE8C", "#EBCB8B", "#81A1C1", "#B48EAD", "#8FBCBB", "#FFFFFF"])
+        case .solarized:
+            return Self.make(fg: "#586E75", bg: "#FDF6E3", cursor: "#268BD2", sel: "#E5DFC8", chrome: "#EEE8D5", ansi: [
+                "#073642", "#DC322F", "#859900", "#B58900", "#268BD2", "#D33682", "#2AA198", "#EEE8D5",
+                "#002B36", "#CB4B16", "#586E75", "#657B83", "#839496", "#6C71C4", "#93A1A1", "#FDF6E3"])
+        case .solarizedDark:
+            return Self.make(fg: "#93A1A1", bg: "#002B36", cursor: "#268BD2", sel: "#12505F", chrome: "#073642", ansi: [
+                "#073642", "#DC322F", "#859900", "#B58900", "#268BD2", "#D33682", "#2AA198", "#EEE8D5",
+                "#002B36", "#CB4B16", "#586E75", "#657B83", "#839496", "#6C71C4", "#93A1A1", "#FDF6E3"])
+        case .paper:
+            return Self.make(fg: "#1C1B19", bg: "#FAF9F7", cursor: "#B45309", sel: "#EBE9E4", chrome: "#F2F0EC", ansi: [
+                "#1C1B19", "#DC2626", "#4D7C0F", "#B45309", "#2563EB", "#9333EA", "#0891B2", "#F2F0EC",
+                "#A8A49C", "#EF4444", "#65A30D", "#D97706", "#3B82F6", "#A855F7", "#06B6D4", "#FFFFFF"])
+        case .matrix:
+            return Self.make(fg: "#00FF41", bg: "#000000", cursor: "#00FF41", sel: "#0D1F0D", chrome: "#030D03", ansi: [
+                "#000000", "#FF2222", "#00B32C", "#00FF41", "#005C16", "#00B32C", "#00FF41", "#B6FFBF",
+                "#005C16", "#FF5555", "#00FF41", "#7CFF91", "#00B32C", "#33FF66", "#99FFAA", "#FFFFFF"])
         case .synthwave:
             return Self.make(fg: "#F8F8F2", bg: "#262335", cursor: "#FF7EDB", sel: "#463465", chrome: "#1B172B", ansi: [
                 "#262335", "#FE4450", "#72F1B8", "#FEDE5D", "#03EDF9", "#FF7EDB", "#03EDF9", "#B6B1B1",

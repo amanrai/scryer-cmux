@@ -51,6 +51,16 @@ struct RootView: View {
                 AttachedView(backend: backend).id(backend.id)
             }
         }
+        // Kanbaner board overlays the attached screen so the live terminal stays mounted
+        // underneath (reached from the machine modal; PM is global, not backend-scoped).
+        .overlay {
+            if model.showingKanbaner, case .attached = model.phase {
+                KanbanerView()
+                    .environment(model)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: model.showingKanbaner)
         .preferredColorScheme(model.theme.isDark ? .dark : .light)
         #if os(macOS)
         .background(WindowAccessor { window in

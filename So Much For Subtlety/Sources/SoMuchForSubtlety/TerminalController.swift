@@ -30,6 +30,9 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
 
     // Scryer state surfaced from the WS frames. Mirrors gateway-ui/TerminalPane.tsx.
     private(set) var hasProducer = false
+    /// The producer `from` this pane is listening to (nil until a marker is detected) — used
+    /// by the app-wide interaction pull to know which producers to poll.
+    var producerFrom: String? { currentProducerFrom }
     private(set) var pendingInteraction: InteractionRequest?
     /// Bumped on every `interaction` frame so the UI can auto-present per-frame
     /// (not only when the request id changes), matching gateway-ui.
@@ -296,6 +299,12 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
         persistDismissed()
     }
 
+    /// Respond to a specific request (from the app-wide store flow). The response goes back
+    /// over the pane's WS (the pty-server forwards it to the interaction service).
+    func respond(to request: InteractionRequest, response: [String: Any]) {
+        session.sendInteractionResponse(requestId: request.id, from: request.from, response: response)
+    }
+
     /// Explicit dismiss (not the same as closing the modal): the request is gone for good.
     func dismissInteraction() {
         if let id = pendingInteraction?.id { dismissedInteractionIds.insert(id) }
@@ -374,6 +383,9 @@ final class TerminalStore {
 
     /// Returns an already-live controller without creating one.
     func existing(paneId: String) -> TerminalController? { controllers[paneId] }
+
+    /// Producers across all live panes — the set the interaction pull polls.
+    var activeProducers: Set<String> { Set(controllers.values.compactMap { $0.producerFrom }) }
 
     func close(paneId: String) {
         controllers[paneId]?.disconnect()

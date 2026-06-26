@@ -8,7 +8,22 @@ struct HostButtonSettings: Codable, Equatable {
     var interaction = true
     var agentUpdates = true
     var scryer = true
+    var audioInput = true
+    var reconnect = false
     var quickInputs = false
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        fontSize = try container.decodeIfPresent(Bool.self, forKey: .fontSize) ?? true
+        interaction = try container.decodeIfPresent(Bool.self, forKey: .interaction) ?? true
+        agentUpdates = try container.decodeIfPresent(Bool.self, forKey: .agentUpdates) ?? true
+        scryer = try container.decodeIfPresent(Bool.self, forKey: .scryer) ?? true
+        audioInput = try container.decodeIfPresent(Bool.self, forKey: .audioInput) ?? true
+        reconnect = try container.decodeIfPresent(Bool.self, forKey: .reconnect) ?? false
+        quickInputs = try container.decodeIfPresent(Bool.self, forKey: .quickInputs) ?? false
+    }
 }
 
 /// Top-level app state: which gateway we're talking to and which backend is selected.
@@ -44,6 +59,36 @@ final class AppModel {
         didSet { UserDefaults.standard.set(voicePauseLength, forKey: Self.voicePauseLengthKey) }
     }
 
+    /// Host:port of the JEPM PM system the Kanbaner board talks to directly. Persisted;
+    /// editable in Settings. Defaults to the known tailnet address.
+    var pmHost: String {
+        didSet { UserDefaults.standard.set(pmHost, forKey: Self.pmHostKey) }
+    }
+
+    /// Parsed PM endpoint, falling back to the default if the stored host is unparseable.
+    var pmEndpoint: PmEndpoint { PmEndpoint(rawInput: pmHost) ?? .default }
+
+    /// Host:port of the Scryer interaction service (direct, tailnet). Persisted.
+    var interactionsHost: String {
+        didSet {
+            UserDefaults.standard.set(interactionsHost, forKey: Self.interactionsHostKey)
+            interactions.endpoint = InteractionsEndpoint(rawInput: interactionsHost) ?? .default
+        }
+    }
+
+    /// App-wide deduped store of interactions + agent updates, pulled from the interaction
+    /// service across all open terminals' producers. Stored but not surfaced — the display
+    /// flow is being reworked.
+    let interactions = InteractionStore()
+
+    /// Whether the Kanbaner board is currently shown (over the attached terminal screen).
+    var showingKanbaner = false
+
+    /// Last project opened in the Kanbaner, restored on reopen. Persisted.
+    var lastKanbanerProjectId: String? {
+        didSet { UserDefaults.standard.set(lastKanbanerProjectId, forKey: Self.lastKanbanerProjectKey) }
+    }
+
     private var refreshTask: Task<Void, Never>?
 
     private static let endpointDefaultsKey = "smfs.gateway.endpoint"
@@ -51,6 +96,9 @@ final class AppModel {
     private static let fontSizeDefaultsKey = "smfs.fontSize"
     private static let themeDefaultsKey = "smfs.theme"
     private static let voicePauseLengthKey = "smfs.voicePauseLength"
+    private static let pmHostKey = "smfs.pmHost"
+    private static let interactionsHostKey = "smfs.interactionsHost"
+    private static let lastKanbanerProjectKey = "smfs.lastKanbanerProject"
 
     static let fontSizeRange: ClosedRange<Double> = 8...28
     static let voicePauseRange: ClosedRange<Double> = 3...15
@@ -113,6 +161,12 @@ final class AppModel {
         self.theme = UserDefaults.standard.string(forKey: Self.themeDefaultsKey).flatMap(AppTheme.init(rawValue:)) ?? .oneDark
         let storedPause = UserDefaults.standard.object(forKey: Self.voicePauseLengthKey) as? Double
         self.voicePauseLength = storedPause.map { min(max($0, Self.voicePauseRange.lowerBound), Self.voicePauseRange.upperBound) } ?? 6
+        let storedPmHost = UserDefaults.standard.string(forKey: Self.pmHostKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.pmHost = (storedPmHost?.isEmpty == false ? storedPmHost! : PmEndpoint.defaultHost)
+        let storedInteractionsHost = UserDefaults.standard.string(forKey: Self.interactionsHostKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.interactionsHost = (storedInteractionsHost?.isEmpty == false ? storedInteractionsHost! : InteractionsEndpoint.defaultHost)
+        self.lastKanbanerProjectId = UserDefaults.standard.string(forKey: Self.lastKanbanerProjectKey)
+        interactions.endpoint = InteractionsEndpoint(rawInput: interactionsHost) ?? .default
         self.machineNames = UserDefaults.standard.dictionary(forKey: Self.machineNamesKey) as? [String: String] ?? [:]
         self.machineNameColors = UserDefaults.standard.dictionary(forKey: Self.machineNameColorsKey) as? [String: String] ?? [:]
         self.lastWorkspaceByBackend = UserDefaults.standard.dictionary(forKey: Self.lastWorkspaceKey) as? [String: String] ?? [:]
@@ -200,6 +254,84 @@ final class AppModel {
         if backends.isEmpty {
             errorMessage = error.localizedDescription
             if phase == .loadingBackends { phase = .picking }
+        }
+    }
+}
+
+/// App-wide, deduped store of Scryer interactions and agent updates, pulled directly from the
+/// interaction service for every active producer across open terminals. Dedup key is the item
+/// `id`; updates are bucketed by producer `from` (they don't carry it). Dismissals are tracked
+/// per producer and persisted, so the modal can surface only the relevant interaction.
+@MainActor
+@Observable
+final class InteractionStore {
+    private(set) var interactionsByFrom: [String: [String: InteractionRequest]] = [:]
+    private(set) var updatesByFrom: [String: [String: SessionUpdate]] = [:]
+    private(set) var dismissedByFrom: [String: Set<String>] = [:]
+    var endpoint: InteractionsEndpoint = .default
+
+    private static let dismissedKey = "smfs.dismissedInteractions"   // [from: [id]]
+
+    init() {
+        let dict = UserDefaults.standard.dictionary(forKey: Self.dismissedKey) as? [String: [String]] ?? [:]
+        dismissedByFrom = dict.mapValues { Set($0) }
+    }
+
+    /// Interactions for one producer, recency-ascending. Bucketed by the producer we polled,
+    /// so it doesn't depend on the service echoing `from` back in each request.
+    func interactions(for from: String) -> [InteractionRequest] {
+        (interactionsByFrom[from] ?? [:]).values.sorted { $0.order < $1.order }
+    }
+    /// Agent updates (notifications) for one producer, recency-ascending.
+    func updates(for from: String) -> [SessionUpdate] {
+        (updatesByFrom[from] ?? [:]).values.sorted { ($0.receivedAt ?? "", $0.id) < ($1.receivedAt ?? "", $1.id) }
+    }
+
+    /// The newest **undismissed** interaction that arrived **after** the newest one the user
+    /// already dismissed for this producer (nil if none) — the single one to surface.
+    func actionableInteraction(for from: String) -> InteractionRequest? {
+        let dismissed = dismissedByFrom[from] ?? []
+        let items = interactions(for: from)
+        let floor = items.filter { dismissed.contains($0.id) }.map { $0.order }.max()
+        let candidates = items.filter { request in
+            guard !dismissed.contains(request.id) else { return false }
+            if let floor { return request.order > floor }
+            return true
+        }
+        return candidates.max { $0.order < $1.order }
+    }
+
+    func ingest(interactions requests: [InteractionRequest], from: String) {
+        guard !from.isEmpty else { return }
+        var bucket = interactionsByFrom[from] ?? [:]
+        for request in requests where !request.id.isEmpty { bucket[request.id] = request }
+        interactionsByFrom[from] = bucket
+    }
+    func ingest(updates incoming: [SessionUpdate], from: String) {
+        guard !from.isEmpty else { return }
+        var bucket = updatesByFrom[from] ?? [:]
+        for update in incoming where !update.id.isEmpty { bucket[update.id] = update }
+        updatesByFrom[from] = bucket
+    }
+
+    /// Mark an interaction dismissed for its producer (persisted) — it and anything older
+    /// stop being surfaced.
+    func dismiss(id: String, from: String) {
+        guard !id.isEmpty, !from.isEmpty else { return }
+        var ids = dismissedByFrom[from] ?? []
+        ids.insert(id)
+        dismissedByFrom[from] = ids
+        let dict = dismissedByFrom.mapValues { Array($0.suffix(500)) }
+        UserDefaults.standard.set(dict, forKey: Self.dismissedKey)
+    }
+
+    /// Poll the interaction service for each active producer, merging deduped (latest wins).
+    func poll(producers: Set<String>) async {
+        guard !producers.isEmpty else { return }
+        let client = InteractionsClient(endpoint: endpoint)
+        for from in producers {
+            ingest(interactions: await client.activeRequests(from: from), from: from)
+            ingest(updates: await client.updates(from: from, limit: 100), from: from)
         }
     }
 }

@@ -2,7 +2,7 @@ import SwiftUI
 import ScryerCore
 
 /// App-wide settings, styled like macOS System Settings: a sidebar `List` plus grouped
-/// `Form` content. Pages: Appearance / Machine / Buttons / Gateway.
+/// `Form` content. Pages: Appearance / Backends / Controls / Gateway.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -10,14 +10,15 @@ struct SettingsView: View {
     let defaultMachineName: String
 
     enum Page: String, CaseIterable, Identifiable, Hashable {
-        case appearance = "Appearance", audio = "Audio", machine = "Machine", buttons = "Buttons", gateway = "Gateway"
+        case appearance = "Appearance", audio = "Audio", backends = "Backends", controls = "Controls", kanbaner = "Kanbaner", gateway = "Gateway"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .appearance: return "textformat.size"
             case .audio: return "waveform"
-            case .machine: return "desktopcomputer"
-            case .buttons: return "switch.2"
+            case .backends: return "desktopcomputer"
+            case .controls: return "switch.2"
+            case .kanbaner: return "square.grid.3x1.below.line.grid.1x2"
             case .gateway: return "point.3.connected.trianglepath.dotted"
             }
         }
@@ -77,11 +78,11 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() }.fontWeight(.semibold) } }
         } detail: {
             Form { pageContent(for: page) }
                 .navigationTitle(page.rawValue)
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() }.fontWeight(.semibold) } }
         }
         .navigationSplitViewStyle(.balanced)
         .task(id: page) { if page == .gateway { await loadGateway() } }
@@ -98,10 +99,33 @@ struct SettingsView: View {
         switch page {
         case .appearance: appearanceSections
         case .audio: audioSections
-        case .machine: machineSections
-        case .buttons: buttonsSections
+        case .backends: backendSections
+        case .controls: controlsSections
+        case .kanbaner: kanbanerSections
         case .gateway: gatewaySections
         }
+    }
+
+    // MARK: Kanbaner
+
+    @ViewBuilder private var kanbanerSections: some View {
+        Section {
+            TextField("Host:port", text: pmHostBinding, prompt: Text(PmEndpoint.defaultHost))
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                #endif
+                .font(.callout.monospaced())
+            Button("Reset to default") { model.pmHost = PmEndpoint.defaultHost }
+        } header: {
+            Text("PM system endpoint")
+        } footer: {
+            Text("The Kanbaner board talks to the JEPM PM system directly at this host. Resolves to \(model.pmEndpoint.displayHost).")
+        }
+    }
+
+    private var pmHostBinding: Binding<String> {
+        Binding(get: { model.pmHost }, set: { model.pmHost = $0 })
     }
 
     // MARK: Appearance
@@ -145,19 +169,19 @@ struct SettingsView: View {
         Binding(get: { model.voicePauseLength }, set: { model.voicePauseLength = $0 })
     }
 
-    // MARK: Machine
+    // MARK: Backends
 
-    @ViewBuilder private var machineSections: some View {
+    @ViewBuilder private var backendSections: some View {
         Section {
             if !reachable.isEmpty {
-                Picker("Machine", selection: $selectedBackendId) {
+                Picker("Backend", selection: $selectedBackendId) {
                     ForEach(reachable) { Text($0.label).tag($0.id) }
                 }
             }
             TextField("Display name", text: nameBinding, prompt: Text(selectedLabel))
             ColorPicker("Name color", selection: nameColorBinding, supportsOpacity: false)
         } header: {
-            Text("Machine")
+            Text("Backend")
         } footer: {
             Text("Display name, color, and icons are stored locally on this device.")
         }
@@ -188,19 +212,20 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: Buttons
+    // MARK: Controls
 
-    @ViewBuilder private var buttonsSections: some View {
+    @ViewBuilder private var controlsSections: some View {
         Section {
-            Toggle("Font Size", isOn: hostButtonBinding(\.fontSize))
-            Toggle("Interaction", isOn: hostButtonBinding(\.interaction))
+            Toggle("Font Size Controls", isOn: hostButtonBinding(\.fontSize))
+            Toggle("Interactions", isOn: hostButtonBinding(\.interaction))
             Toggle("Agent Updates", isOn: hostButtonBinding(\.agentUpdates))
-            Toggle("Scryer", isOn: hostButtonBinding(\.scryer))
-            Toggle("Quick Inputs", isOn: hostButtonBinding(\.quickInputs))
+            Toggle("Scryer Picker", isOn: hostButtonBinding(\.scryer))
+            Toggle("Audio Input", isOn: hostButtonBinding(\.audioInput))
+            Toggle("Reconnect", isOn: hostButtonBinding(\.reconnect))
         } header: {
-            Text("Host bar buttons")
+            Text("Host bar controls")
         } footer: {
-            Text("Active-pane buttons shown in the host bar.")
+            Text("Active-pane controls shown in the host bar.")
         }
     }
 

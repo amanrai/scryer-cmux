@@ -7,6 +7,7 @@ struct MachinePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     let currentBackendId: String
     let onSelect: (BackendMachine) -> Void
+    var onKanbaner: () -> Void = {}
 
     private var selectable: [BackendMachine] { model.backends.filter(\.isSelectable) }
 
@@ -39,6 +40,27 @@ struct MachinePickerSheet: View {
             }
 
             Section {
+                Button {
+                    dismiss()
+                    onKanbaner()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.grid.3x1.below.line.grid.1x2")
+                            .foregroundStyle(.tint)
+                            .frame(width: 8)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Kanbaner")
+                            Text("Project board").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Section {
                 Button(role: .destructive) {
                     model.disconnect()
                     dismiss()
@@ -52,6 +74,6 @@ struct MachinePickerSheet: View {
             }
         }
         .modalList()
-        .modalChrome("Switch Machine", systemImage: "desktopcomputer", width: 440, height: 400)
+        .modalChrome("Select Backend", systemImage: "desktopcomputer", width: 440, height: 400)
     }
 }

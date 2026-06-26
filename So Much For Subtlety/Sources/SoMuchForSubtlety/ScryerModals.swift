@@ -5,7 +5,9 @@ import ScryerCore
 
 struct InteractionModalView: View {
     @Environment(\.dismiss) private var dismiss
-    let request: InteractionRequest
+    /// The single interaction to surface (newest undismissed after the newest dismissed), or
+    /// nil when there's nothing actionable — the notifications list still shows.
+    let request: InteractionRequest?
     let updates: [SessionUpdate]
     let onRespond: ([String: Any]) -> Void
     let onDismissRequest: () -> Void
@@ -14,65 +16,70 @@ struct InteractionModalView: View {
     @State private var draft = ""
     @FocusState private var composeFocused: Bool
 
-    private var recentUpdates: [SessionUpdate] { Array(updates.suffix(2)) }
-
     var body: some View {
         List {
-            if !recentUpdates.isEmpty {
-                Section("Recent activity") {
-                    ForEach(recentUpdates) { update in updateRow(update) }
-                }
-            }
-
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(request.payload.title ?? "Input needed").font(.headline)
-                    if let body = request.payload.body, !body.isEmpty {
-                        Text(body).foregroundStyle(.secondary)
+            if let request {
+                Section {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(request.payload.title ?? "Input needed").font(.headline)
+                        if let body = request.payload.body, !body.isEmpty {
+                            Text(body).foregroundStyle(.secondary)
+                        }
                     }
                 }
-            }
 
-            Section("Respond") {
-                ForEach(request.payload.choices ?? []) { choice in
-                    Button {
-                        if choice.custom == true { composing = true }
-                        else { onRespond(["kind": "choice", "choiceId": choice.id, "text": choice.send ?? choice.label]); dismiss() }
-                    } label: {
-                        HStack {
-                            Text(choice.label)
-                            Spacer()
-                            Image(systemName: "arrow.right").foregroundStyle(.tertiary)
+                Section("Respond") {
+                    ForEach(request.payload.choices ?? []) { choice in
+                        Button {
+                            if choice.custom == true { composing = true }
+                            else { onRespond(["kind": "choice", "choiceId": choice.id, "text": choice.send ?? choice.label]); dismiss() }
+                        } label: {
+                            HStack {
+                                Text(choice.label)
+                                Spacer()
+                                Image(systemName: "arrow.right").foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
                         }
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                    }
+                    Button { composing = true } label: {
+                        Label("Type response…", systemImage: "keyboard")
                     }
                     .buttonStyle(.plain)
                 }
-                Button { composing = true } label: {
-                    Label("Type response…", systemImage: "keyboard")
-                }
-                .buttonStyle(.plain)
-            }
 
-            if composing {
-                Section("Custom response") {
-                    TextEditor(text: $draft)
-                        .font(.body.monospaced()).frame(minHeight: 90)
-                        .focused($composeFocused)
-                        .onAppear { composeFocused = true }   // raise the system keyboard
-                    Button("Send") {
-                        onRespond(["kind": "custom", "text": draft.trimmingCharacters(in: .whitespacesAndNewlines)]); dismiss()
+                if composing {
+                    Section("Custom response") {
+                        TextEditor(text: $draft)
+                            .font(.body.monospaced()).frame(minHeight: 90)
+                            .focused($composeFocused)
+                            .onAppear { composeFocused = true }   // raise the system keyboard
+                        Button("Send") {
+                            onRespond(["kind": "custom", "text": draft.trimmingCharacters(in: .whitespacesAndNewlines)]); dismiss()
+                        }
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+
+                Section {
+                    Button("Dismiss", role: .destructive) { onDismissRequest(); dismiss() }
+                }
+            } else {
+                Section { Text("No interaction pending").foregroundStyle(.secondary) }
             }
 
-            Section {
-                Button("Dismiss", role: .destructive) { onDismissRequest(); dismiss() }
+            // All agent notifications for this pane (newest first).
+            Section("Agent notifications") {
+                if updates.isEmpty {
+                    Text("No notifications for this pane.").foregroundStyle(.secondary)
+                } else {
+                    ForEach(updates.reversed()) { update in updateRow(update) }
+                }
             }
         }
         .modalList()
-        .modalChrome("Interaction", systemImage: "bubble.left.and.bubble.right", width: 440, height: 460)
+        .modalChrome("Interaction", systemImage: "bubble.left.and.bubble.right", width: 440, height: 520)
     }
 }
 
@@ -95,6 +102,8 @@ struct ActivityModalView: View {
                 .modalList()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
         .modalChrome("Agent Activity", systemImage: "list.bullet.rectangle", width: 440, height: 460)
     }
 }
@@ -162,8 +171,15 @@ struct ScryerPickerView: View {
             Image(systemName: "rectangle.3.group").foregroundStyle(.secondary)
             Text("Scryer").font(.headline)
             Spacer()
-            Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)) }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 28, height: 28)
+                    .overlay(Circle().stroke(.secondary.opacity(0.45), lineWidth: 1))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain).foregroundStyle(.secondary)
+            .accessibilityLabel("Close")
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
     }
@@ -374,6 +390,29 @@ struct ScryerCover<Content: View>: View {
         }
     }
 }
+/// Centered, near-full-height panel for compact utility modals. Unlike `ScryerCover`, this
+/// keeps a fixed readable width while avoiding iPad's bottom-attached sheet detents.
+struct CenteredModalCover<Content: View>: View {
+    @Binding var isPresented: Bool
+    let width: CGFloat
+    var heightRatio: CGFloat = 0.92
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                Color.black.opacity(0.4).ignoresSafeArea()
+                    .onTapGesture { isPresented = false }
+                content
+                    .frame(width: min(width, geo.size.width * 0.92), height: geo.size.height * heightRatio)
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(.black.opacity(0.18)))
+                    .shadow(color: .black.opacity(0.4), radius: 30)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
 #endif
 
 // MARK: Shared
@@ -383,8 +422,15 @@ private func modalHeader(_ title: String, systemImage: String, onClose: @escapin
         Image(systemName: systemImage).foregroundStyle(.secondary)
         Text(title).font(.headline)
         Spacer()
-        Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 12, weight: .semibold)) }
-            .buttonStyle(.plain).foregroundStyle(.secondary)
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .overlay(Circle().stroke(.secondary.opacity(0.45), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain).foregroundStyle(.secondary)
+        .accessibilityLabel("Close")
     }
     .padding(.horizontal, 16).padding(.vertical, 12)
 }
@@ -413,7 +459,7 @@ private func levelColor(_ level: String?) -> Color {
 
 extension View {
     /// Wraps modal content in platform-native chrome: a `NavigationStack` with an inline
-    /// title + a Done button and native sheet detents on iOS; the custom title bar +
+    /// title + a close button and native sheet detents on iOS; the custom title bar +
     /// fixed window size on macOS.
     func modalChrome(_ title: String, systemImage: String = "rectangle", width: CGFloat, height: CGFloat,
                      detents: Set<PresentationDetent> = [.large, .medium]) -> some View {
@@ -441,16 +487,12 @@ private struct ModalChrome: ViewModifier {
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        NavigationStack {
+        VStack(spacing: 0) {
+            modalHeader(title, systemImage: systemImage) { dismiss() }
+            Divider()
             content
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { dismiss() }.fontWeight(.semibold)
-                    }
-                }
         }
+        .background(.background)
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(6)   // square off the system sheet's large default radius

@@ -32,12 +32,16 @@ struct MachineIconGlyph: View {
     let id: String
     var selected = false
     var compact = false
+    var glyphSize: CGFloat?
+    var frameSize: CGSize?
 
     var body: some View {
+        let size = glyphSize ?? (compact ? 10 : 12)
+        let frame = frameSize ?? CGSize(width: compact ? 20 : 26, height: compact ? 18 : 22)
         Image(systemName: MachineIcons.symbol(for: id))
-            .font(.system(size: compact ? 10 : 12, weight: .medium))
+            .font(.system(size: size, weight: .medium))
             .symbolRenderingMode(.monochrome)
-            .frame(width: compact ? 20 : 26, height: compact ? 18 : 22)
+            .frame(width: frame.width, height: frame.height)
             .background(selected ? Color.accentColor.opacity(0.28) : Color.secondary.opacity(0.12),
                         in: RoundedRectangle(cornerRadius: compact ? 3 : 4))
     }
