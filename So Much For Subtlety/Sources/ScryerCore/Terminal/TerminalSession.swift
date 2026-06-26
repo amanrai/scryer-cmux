@@ -62,6 +62,25 @@ public final class TerminalSession: NSObject {
         state = .closed(reason: nil)
     }
 
+    /// Force a fresh connection. Safe whether or not the current socket is alive — used by
+    /// the refresh control when the app resumes from suspend and the socket has died silently.
+    public func reconnect() {
+        task?.cancel(with: .goingAway, reason: nil)
+        task = nil
+        connect()
+    }
+
+    /// Liveness probe. On a silently-dead socket (e.g. after the app was suspended) the pong
+    /// handler returns an error; we surface it as a failure so a watcher can reconnect. On a
+    /// live socket it's a cheap no-op.
+    public func ping() {
+        guard let task else { return }
+        task.sendPing { [weak self] error in
+            guard let error else { return }
+            Task { @MainActor in self?.fail(error.localizedDescription) }
+        }
+    }
+
     // MARK: Sending
 
     public func send(_ message: TerminalProtocol.Outbound) {

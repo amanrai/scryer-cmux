@@ -10,5 +10,10 @@
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+    <!-- Voice dictation: mic capture + on-device speech recognition. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Dictate commands and prompts to the terminal by voice.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Transcribe your speech on-device to type into the terminal.</string>
 </dict>
 </plist>

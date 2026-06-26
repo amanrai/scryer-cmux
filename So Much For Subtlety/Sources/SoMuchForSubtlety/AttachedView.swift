@@ -10,6 +10,7 @@ import ScryerCore
 /// any existing pane (reattaching to the live PTY session by its real paneId).
 struct AttachedView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     let backend: BackendMachine
 
     @State private var state: AppState?
@@ -22,6 +23,8 @@ struct AttachedView: View {
     @State private var showingInteraction = false
     @State private var showingActivity = false
     @State private var showingScryerPicker = false
+    @State private var showingDictation = false
+    @State private var wasBackgrounded = false   // gate scenePhase auto-reconnect
     @State private var hoveredWorkspaceId: String?
     @State private var renamingWorkspaceId: String?
     @State private var renameDraft = ""
@@ -33,7 +36,8 @@ struct AttachedView: View {
 
     private var anyModalOpen: Bool {
         showingSettings || showingMachinePicker || showingQuickInputs
-            || showingInteraction || showingActivity || showingScryerPicker || renamingWorkspaceId != nil
+            || showingInteraction || showingActivity || showingScryerPicker
+            || showingDictation || renamingWorkspaceId != nil
     }
     private var keyboardOffset: Binding<CGSize> {
         Binding(get: { CGSize(width: kbOffsetX, height: kbOffsetY) },
@@ -79,8 +83,9 @@ struct AttachedView: View {
                         .overlay(RoundedRectangle(cornerRadius: 5).stroke(.black.opacity(0.22), lineWidth: 1))
                         .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 8)
                         #if os(iOS)
-                        // Scrolling the terminal dims the keyboard to faint; a single tap restores
-                        // it from faint; a double tap raises it when it's been hidden.
+                        // Scrolling the terminal collapses the keyboard to faint (a compact bar,
+                        // top-right); a single tap restores the full keyboard; a double tap raises
+                        // it when it's been fully hidden.
                         .simultaneousGesture(DragGesture(minimumDistance: 14).onChanged { _ in
                             if keyboardVisibility == .shown { withAnimation(.easeOut(duration: 0.25)) { keyboardVisibility = .faint } }
                         })
@@ -90,6 +95,39 @@ struct AttachedView: View {
                         .simultaneousGesture(TapGesture(count: 2).onEnded {
                             if keyboardVisibility == .hidden { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown } }
                         })
+                        // Faint state: the collapsed essentials bar, pinned to the terminal's
+                        // top-right. Added after the gestures above so its key taps fire on their
+                        // own without also triggering the terminal's restore-tap.
+                        .overlay(alignment: .topTrailing) {
+                            if keyboardVisibility == .faint, let controller = activeController {
+                                CompactKeyboardBar(
+                                    onKey: { controller.type($0, modifiers: []) },
+                                    theme: AppTheme.matte.terminal
+                                )
+                                .disabled(!terminalConnected)
+                                .opacity(terminalConnected ? 1 : 0.45)
+                                .padding(.top, 14).padding(.trailing, 18)
+                                .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .topTrailing)))
+                            }
+                        }
+                        // Dedicated, mostly-transparent voice trigger floating on the terminal's
+                        // center-right. Large hit target; opens the dictation modal.
+                        .overlay(alignment: .trailing) {
+                            Button(action: { showingDictation = true }) {
+                                Image(systemName: terminalConnected ? "mic.fill" : "mic.slash")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.85))
+                                    .frame(width: 60, height: 60)            // generous tap target
+                                    .background(.black.opacity(0.22), in: Circle())
+                                    .overlay(Circle().stroke(.white.opacity(0.18)))
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!terminalConnected)             // no dictating into a dead socket
+                            .opacity(terminalConnected ? 1 : 0.4)
+                            .padding(.trailing, 12)
+                            .accessibilityLabel("Voice dictation")
+                        }
                         #endif
                 }
             } else {
@@ -100,7 +138,7 @@ struct AttachedView: View {
         .background(chromeBackground)   // chrome is the container; the terminal nests inside it
         #if os(iOS)
         .overlay(alignment: .bottom) {
-            if keyboardVisibility != .hidden, let controller = activeController {
+            if keyboardVisibility == .shown, let controller = activeController {
                 GeometryReader { geo in
                     FloatingKeyboardView(
                         onText: { controller.type($0, modifiers: $1) },
@@ -115,7 +153,8 @@ struct AttachedView: View {
                         position: keyboardOffset
                     )
                     .environment(\.colorScheme, .dark)   // keep handle/picker legible on the black surface
-                    .opacity(keyboardVisibility == .faint ? 0.01 : 1)
+                    .disabled(!terminalConnected)        // dim + lock while the socket is down
+                    .opacity(terminalConnected ? 1 : 0.45)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -131,6 +170,14 @@ struct AttachedView: View {
         .onDisappear { store.teardown() }
         .onChange(of: model.fontSize) { _, newValue in store.setFontSize(CGFloat(newValue)) }
         .onChange(of: model.theme) { _, newTheme in store.setTheme(newTheme.terminal) }
+        // Returning from background: the WS socket was suspended and is silently dead, so
+        // reconnect the live pane automatically (input UI stays disabled until it's back up).
+        // Track a flag because the phase walks .background → .inactive → .active, so the
+        // step right before .active is .inactive, not .background.
+        .onChange(of: scenePhase) { _, new in
+            if new == .background { wasBackgrounded = true }
+            else if new == .active, wasBackgrounded { wasBackgrounded = false; activeController?.reconnect() }
+        }
         .sheet(isPresented: $showingSettings) {
             SettingsView(backendId: backend.id, defaultMachineName: state?.hostName ?? backend.label).environment(model)
         }
@@ -158,11 +205,38 @@ struct AttachedView: View {
         .sheet(isPresented: $showingActivity, onDismiss: { activeController?.activityVisible = false }) {
             ActivityModalView(updates: activeController?.updates ?? [])
         }
+        #if os(iOS)
+        // Voice dictation: a short panel that fills an editable transcript, then injects it
+        // into the terminal and submits (text + Enter) on Send. Uses the same raw-input
+        // submit path as the Scryer picker / quick inputs (proven; also refocuses terminal).
+        .sheet(isPresented: $showingDictation) {
+            DictationView(silenceTimeout: model.voicePauseLength) { text in
+                guard !text.isEmpty else { return }
+                activeController?.send(text + "\r")
+            }
+            .presentationDetents([.height(440)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(6)
+            .presentationBackground(Color.black.opacity(0.15))   // ~85% transparent: terminal shows through
+        }
+        #endif
+        #if os(iOS)
+        // Scryer is a near-full-screen panel (85%, square corners), not a system sheet.
+        .fullScreenCover(isPresented: $showingScryerPicker) {
+            if let endpoint = model.endpoint {
+                ScryerCover(isPresented: $showingScryerPicker) {
+                    ScryerPickerView(backendId: backend.id, endpoint: endpoint) { text in activeController?.send(text) }
+                }
+                .presentationBackground(.clear)
+            }
+        }
+        #else
         .sheet(isPresented: $showingScryerPicker) {
             if let endpoint = model.endpoint {
                 ScryerPickerView(backendId: backend.id, endpoint: endpoint) { text in activeController?.send(text) }
             }
         }
+        #endif
         .alert("Rename Workspace", isPresented: Binding(get: { renamingWorkspaceId != nil }, set: { if !$0 { renamingWorkspaceId = nil } })) {
             TextField("Name", text: $renameDraft)
             Button("Save") { Task { await renameWorkspace() } }
@@ -239,6 +313,10 @@ struct AttachedView: View {
             .buttonStyle(.borderless)
             .help(keyboardVisibility == .hidden ? "Show keyboard" : "Hide keyboard")
             #endif
+
+            Button(action: { Task { await refresh() } }) { Image(systemName: "arrow.clockwise").font(.system(size: chromeGlyph)) }
+                .buttonStyle(.borderless)
+                .help("Refresh (reconnect after suspend)")
 
             Button(action: { showingSettings = true }) { Image(systemName: "gearshape").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless)
@@ -326,6 +404,10 @@ struct AttachedView: View {
         guard let paneId = selectedPaneId, let endpoint = model.endpoint else { return nil }
         return store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id, fontSize: CGFloat(model.fontSize), theme: model.theme.terminal)
     }
+
+    /// Whether the live terminal socket is up. Drives input gating (keyboard/mic) so a dead
+    /// connection after suspend is an obvious, non-silent state.
+    private var terminalConnected: Bool { activeController?.isConnected ?? false }
 
     private func adjustFontSize(_ delta: Double) {
         model.fontSize = min(max(model.fontSize + delta, AppModel.fontSizeRange.lowerBound), AppModel.fontSizeRange.upperBound)
@@ -440,6 +522,13 @@ struct AttachedView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Refresh button: re-pull the workspace state and reconnect the live terminal so a
+    /// session that died while the app was suspended comes back without a relaunch.
+    private func refresh() async {
+        activeController?.reconnect()
+        await loadState()
     }
 
     private func loadState() async {

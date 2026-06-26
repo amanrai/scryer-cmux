@@ -10,11 +10,12 @@ struct SettingsView: View {
     let defaultMachineName: String
 
     enum Page: String, CaseIterable, Identifiable, Hashable {
-        case appearance = "Appearance", machine = "Machine", buttons = "Buttons", gateway = "Gateway"
+        case appearance = "Appearance", audio = "Audio", machine = "Machine", buttons = "Buttons", gateway = "Gateway"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .appearance: return "textformat.size"
+            case .audio: return "waveform"
             case .machine: return "desktopcomputer"
             case .buttons: return "switch.2"
             case .gateway: return "point.3.connected.trianglepath.dotted"
@@ -67,22 +68,23 @@ struct SettingsView: View {
     }
     #else
     private var content: some View {
-        NavigationStack {
-            List {
+        // iPad-native: a sidebar + detail split (collapses to a drill-down on iPhone),
+        // matching the macOS layout and Settings.app on iPad.
+        NavigationSplitView {
+            List(selection: pageSelection) {
                 ForEach(Page.allCases) { item in
-                    NavigationLink {
-                        Form { pageContent(for: item) }
-                            .navigationTitle(item.rawValue)
-                            .navigationBarTitleDisplayMode(.inline)
-                            .task { if item == .gateway { await loadGateway() } }
-                    } label: {
-                        Label(item.rawValue, systemImage: item.symbol)
-                    }
+                    Label(item.rawValue, systemImage: item.symbol).tag(item)
                 }
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() }.fontWeight(.semibold) } }
+        } detail: {
+            Form { pageContent(for: page) }
+                .navigationTitle(page.rawValue)
+                .navigationBarTitleDisplayMode(.inline)
         }
+        .navigationSplitViewStyle(.balanced)
+        .task(id: page) { if page == .gateway { await loadGateway() } }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -95,6 +97,7 @@ struct SettingsView: View {
     @ViewBuilder private func pageContent(for page: Page) -> some View {
         switch page {
         case .appearance: appearanceSections
+        case .audio: audioSections
         case .machine: machineSections
         case .buttons: buttonsSections
         case .gateway: gatewaySections
@@ -119,6 +122,27 @@ struct SettingsView: View {
 
     private var themeBinding: Binding<AppTheme> {
         Binding(get: { model.theme }, set: { model.theme = $0 })
+    }
+
+    // MARK: Audio
+
+    @ViewBuilder private var audioSections: some View {
+        Section {
+            LabeledContent("Allowed pause length") {
+                HStack(spacing: 12) {
+                    Slider(value: pauseBinding, in: AppModel.voicePauseRange, step: 1).frame(width: 180)
+                    Text("\(Int(model.voicePauseLength)) s").font(.callout.monospaced()).foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Voice dictation")
+        } footer: {
+            Text("How long to keep listening through a silence before auto-stopping (3–15s).")
+        }
+    }
+
+    private var pauseBinding: Binding<Double> {
+        Binding(get: { model.voicePauseLength }, set: { model.voicePauseLength = $0 })
     }
 
     // MARK: Machine

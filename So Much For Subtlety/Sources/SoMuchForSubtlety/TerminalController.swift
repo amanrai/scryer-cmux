@@ -24,6 +24,9 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
     let metalView: TerminalMetalView
     private(set) var title: String?
     private(set) var connectionState: TerminalSession.State = .connecting
+    /// True only when the live PTY socket is up — gates input UI (keyboard/mic) so we never
+    /// type into a dead connection after the app is suspended.
+    var isConnected: Bool { connectionState == .connected }
 
     // Scryer state surfaced from the WS frames. Mirrors gateway-ui/TerminalPane.tsx.
     private(set) var hasProducer = false
@@ -91,6 +94,25 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
         producerScanTimer?.invalidate()
         producerScanTimer = nil
         session.disconnect()
+    }
+
+    /// Re-establish the PTY connection and re-scan listening state. Backs the refresh
+    /// button — handy after the app wakes from suspend with a dead socket.
+    func reconnect() {
+        session.reconnect()
+        pushSnapshot()
+        refreshProducerState()
+    }
+
+    /// One tick of the connection watcher (polled ~1s by the view): ping while nominally
+    /// connected to catch a silently dead socket, and reconnect once it's actually closed.
+    /// No-op while a connect is already in flight.
+    func tickConnection() {
+        switch connectionState {
+        case .connected:  session.ping()
+        case .closed:     reconnect()
+        case .connecting: break
+        }
     }
 
     func setFontSize(_ size: CGFloat) {

@@ -39,14 +39,21 @@ final class AppModel {
         didSet { UserDefaults.standard.set(theme.rawValue, forKey: Self.themeDefaultsKey) }
     }
 
+    /// Voice dictation: trailing-silence (seconds) before auto-stop. Persisted.
+    var voicePauseLength: Double {
+        didSet { UserDefaults.standard.set(voicePauseLength, forKey: Self.voicePauseLengthKey) }
+    }
+
     private var refreshTask: Task<Void, Never>?
 
     private static let endpointDefaultsKey = "smfs.gateway.endpoint"
     private static let backendDefaultsKey = "smfs.backend.id"
     private static let fontSizeDefaultsKey = "smfs.fontSize"
     private static let themeDefaultsKey = "smfs.theme"
+    private static let voicePauseLengthKey = "smfs.voicePauseLength"
 
     static let fontSizeRange: ClosedRange<Double> = 8...28
+    static let voicePauseRange: ClosedRange<Double> = 3...15
 
     /// Per-backend display name overrides (local to this device).
     var machineNames: [String: String] = [:] {
@@ -104,6 +111,8 @@ final class AppModel {
         let stored = UserDefaults.standard.object(forKey: Self.fontSizeDefaultsKey) as? Double
         self.fontSize = stored.map { min(max($0, Self.fontSizeRange.lowerBound), Self.fontSizeRange.upperBound) } ?? 13
         self.theme = UserDefaults.standard.string(forKey: Self.themeDefaultsKey).flatMap(AppTheme.init(rawValue:)) ?? .oneDark
+        let storedPause = UserDefaults.standard.object(forKey: Self.voicePauseLengthKey) as? Double
+        self.voicePauseLength = storedPause.map { min(max($0, Self.voicePauseRange.lowerBound), Self.voicePauseRange.upperBound) } ?? 6
         self.machineNames = UserDefaults.standard.dictionary(forKey: Self.machineNamesKey) as? [String: String] ?? [:]
         self.machineNameColors = UserDefaults.standard.dictionary(forKey: Self.machineNameColorsKey) as? [String: String] ?? [:]
         self.lastWorkspaceByBackend = UserDefaults.standard.dictionary(forKey: Self.lastWorkspaceKey) as? [String: String] ?? [:]

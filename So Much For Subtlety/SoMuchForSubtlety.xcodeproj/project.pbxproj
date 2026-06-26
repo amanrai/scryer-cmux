@@ -17,6 +17,8 @@
 		355300873C6400522231D213 /* FloatingKeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE667B3B9FC5CA7F1E3CCC78 /* FloatingKeyboardView.swift */; };
 		39DECAE99EF1F7A889F562B0 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87BC2AD17F2FBDF30350EAE /* TerminalView.swift */; };
 		3C8B39F8AD3FC38F9D9FCB9A /* FloatingKeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE667B3B9FC5CA7F1E3CCC78 /* FloatingKeyboardView.swift */; };
+		AAAA000000000000000000F2 /* VoiceInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA000000000000000000F1 /* VoiceInput.swift */; };
+		AAAA000000000000000000F3 /* VoiceInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAAA000000000000000000F1 /* VoiceInput.swift */; };
 		46D6CD56354C3517D27FA0D6 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87BC2AD17F2FBDF30350EAE /* TerminalView.swift */; };
 		46EF0068C672D5A667B2DD45 /* ScryerGhostty in Frameworks */ = {isa = PBXBuildFile; productRef = 40E00BD667EEA7F851A20D7C /* ScryerGhostty */; };
 		47D1EB8B3C9C6FAF098E881E /* MachineIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC74A7E1E7E9E5E146485E2F /* MachineIcons.swift */; };
@@ -39,6 +41,7 @@
 		DDCA659CBBD04C4674EDA8A8 /* GatewayConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3C0E6B371F341872A90BB5 /* GatewayConnectView.swift */; };
 		EC7E61C3AA8F98EA054D0CE3 /* MachinePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D728DD63FA02C46B8A1492DC /* MachinePickerSheet.swift */; };
 		ECF4C5E10BD159CD9C422BB0 /* BackendPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE9E6C0165CE1B2ED1F538A /* BackendPickerView.swift */; };
+		BBBB0000000000000000F0A3 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = BBBB0000000000000000F0A2 /* WhisperKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +61,7 @@
 		D9CC0BFE7DD2368C95FA408D /* QuickInputsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickInputsView.swift; sourceTree = "<group>"; };
 		F50ED929F9E2500DB8992104 /* AttachedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachedView.swift; sourceTree = "<group>"; };
 		FE667B3B9FC5CA7F1E3CCC78 /* FloatingKeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingKeyboardView.swift; sourceTree = "<group>"; };
+		AAAA000000000000000000F1 /* VoiceInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInput.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -78,6 +82,7 @@
 				C1F46798E3ED4917CC7AE90B /* ScryerCore in Frameworks */,
 				91E390D5F85BDB24D10658D0 /* ScryerGhostty in Frameworks */,
 				AD6816D56DDFB48E26A32FED /* ScryerRender in Frameworks */,
+				BBBB0000000000000000F0A3 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -117,6 +122,7 @@
 				992FB0C8EE88AC608A809A6D /* SettingsView.swift */,
 				620B52C8E03CD0FFACADECEF /* TerminalController.swift */,
 				B87BC2AD17F2FBDF30350EAE /* TerminalView.swift */,
+				AAAA000000000000000000F1 /* VoiceInput.swift */,
 			);
 			path = SoMuchForSubtlety;
 			sourceTree = "<group>";
@@ -178,6 +184,7 @@
 				798FE0D6B205AE96D843EBCA /* ScryerCore */,
 				EC7E5A6AA045E368C8BD92AD /* ScryerGhostty */,
 				E4B382F0B7554E700D503487 /* ScryerRender */,
+				BBBB0000000000000000F0A2 /* WhisperKit */,
 			);
 			productName = "SoMuchForSubtlety-iOS";
 			productReference = B08B0F0704F375AB796614A1 /* SoMuchForSubtlety-iOS.app */;
@@ -211,6 +218,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				56FB563FA98C3776895FD9DF /* XCLocalSwiftPackageReference "." */,
+				BBBB0000000000000000F0A1 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 32163A9854A9108ABB5CED67 /* Products */;
@@ -241,6 +249,7 @@
 				4F08B4645DDA26347B7CD257 /* SettingsView.swift in Sources */,
 				73592673CB932B6881492E6F /* TerminalController.swift in Sources */,
 				46D6CD56354C3517D27FA0D6 /* TerminalView.swift in Sources */,
+				AAAA000000000000000000F2 /* VoiceInput.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,6 +270,7 @@
 				D13E68F1C24613F0EA0EB92C /* SettingsView.swift in Sources */,
 				16414CD61D39C49D709E21CB /* TerminalController.swift in Sources */,
 				39DECAE99EF1F7A889F562B0 /* TerminalView.swift in Sources */,
+				AAAA000000000000000000F3 /* VoiceInput.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -505,6 +515,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		BBBB0000000000000000F0A1 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		0426967C56DDE60D3576BCF7 /* ScryerRender */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -529,6 +550,11 @@
 		EC7E5A6AA045E368C8BD92AD /* ScryerGhostty */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ScryerGhostty;
+		};
+		BBBB0000000000000000F0A2 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BBBB0000000000000000F0A1 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

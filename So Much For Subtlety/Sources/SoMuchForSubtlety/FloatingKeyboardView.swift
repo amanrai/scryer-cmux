@@ -77,31 +77,33 @@ struct FloatingKeyboardView: View {
     // MARK: Header (tabs + drag handle + hide)
 
     private var header: some View {
-        HStack(spacing: 12) {
-            Picker("", selection: $tab) {
-                Text("abc").tag(KeyboardTab.keys)
-                Text("⌃").tag(KeyboardTab.commands)
-                Text("tmux").tag(KeyboardTab.tmux)
-                Text("pi").tag(KeyboardTab.pi)
+        ZStack {
+            HStack {
+                Picker("", selection: $tab) {
+                    Text("abc").tag(KeyboardTab.keys)
+                    Text("⌃").tag(KeyboardTab.commands)
+                    Text("tmux").tag(KeyboardTab.tmux)
+                    Text("pi").tag(KeyboardTab.pi)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 300)
+                Spacer()
+                Button(action: onHide) { Image(systemName: "xmark.circle.fill").font(.system(size: 18)) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
             }
-            .pickerStyle(.segmented)
-            .frame(width: 320)
-
-            Spacer()
-            Capsule().fill(.secondary.opacity(0.5)).frame(width: 56, height: 6)   // grab indicator
-            Spacer()
-
-            Button(action: onHide) { Image(systemName: "chevron.down.circle.fill").font(.system(size: 18)) }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
+            // Drag handle: centered on the keyboard, with an enlarged hit area. Only the
+            // handle drags (no minimum distance), so it tracks the finger exactly with no
+            // dead-zone jump, and never competes with taps on the picker/close button.
+            Capsule().fill(.secondary.opacity(0.5)).frame(width: 56, height: 6)
+                .frame(width: 120, height: 36)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .updating($dragOffset) { value, state, _ in state = value.translation }
+                        .onEnded { value in position.height = clampedY(position.height + value.translation.height) }
+                )
         }
         .padding(.horizontal, 4).padding(.vertical, 8)
-        .contentShape(Rectangle())
-        // Whole header drags (Y only); minimumDistance debounces taps on the picker/button.
-        .gesture(
-            DragGesture(minimumDistance: 10)
-                .updating($dragOffset) { value, state, _ in state = value.translation }
-                .onEnded { value in position.height = clampedY(position.height + value.translation.height) }
-        )
     }
 
     // MARK: Tab 1 — QWERTY
@@ -259,6 +261,9 @@ struct FloatingKeyboardView: View {
     private let commandMacros: [Macro] = [
         .command("clear"), .command("ls"), .command("ls -la"), .command("cd .."), .command("exit"), .command("q"),
     ]
+    private let agentMacros: [Macro] = [
+        .command("pi"), .command("claude"), .command("codex"),
+    ]
     // tmux: default Ctrl-B prefix then a key.
     private let tmuxMacros: [Macro] = [
         .tmux("c", "new"), .tmux("n", "next"), .tmux("p", "prev"), .tmux("w", "list"),
@@ -284,6 +289,7 @@ struct FloatingKeyboardView: View {
         macroTab {
             macroSection("Control", controlMacros)
             macroSection("Keys", keyMacros)
+            macroSection("Agents", agentMacros)
             macroSection("Commands", commandMacros)
         }
     }
@@ -325,6 +331,54 @@ struct FloatingKeyboardView: View {
         case .command(let cmd):   onText(cmd, []); onSpecialKey(.enter, [])
         case .tmux(let key, _):   onText("b", [.control]); onText(key, [])
         }
+    }
+}
+
+/// The collapsed ("faint") keyboard: a small rectangle pinned to the terminal's top-right
+/// that keeps the essentials — the four arrows, esc, and return — reachable while reading.
+/// A single tap elsewhere on the terminal restores the full floating keyboard.
+struct CompactKeyboardBar: View {
+    let onKey: (TerminalKey) -> Void
+    let theme: TerminalTheme
+
+    private var surfaceColor: Color { Color(hex: theme.background.hex) ?? .black }
+    private var fgColor: Color { Color(hex: theme.foreground.hex) ?? .white }
+
+    var body: some View {
+        VStack(spacing: 5) {
+            HStack(spacing: 5) {
+                key(text: "esc", .escape)
+                key(symbol: "arrow.up", .arrowUp)
+                key(symbol: "return", .enter)
+            }
+            HStack(spacing: 5) {
+                key(symbol: "arrow.left", .arrowLeft)
+                key(symbol: "arrow.down", .arrowDown)
+                key(symbol: "arrow.right", .arrowRight)
+            }
+        }
+        .padding(7)
+        .background(surfaceColor, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(fgColor.opacity(0.16)))
+        .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+        .environment(\.colorScheme, .dark)
+    }
+
+    private func key(text: String, _ k: TerminalKey) -> some View {
+        keyButton(k) { Text(text).font(.system(size: 13, weight: .medium)) }
+    }
+    private func key(symbol: String, _ k: TerminalKey) -> some View {
+        keyButton(k) { Image(systemName: symbol).font(.system(size: 15, weight: .medium)) }
+    }
+    private func keyButton<Label: View>(_ k: TerminalKey, @ViewBuilder _ label: () -> Label) -> some View {
+        Button { onKey(k) } label: {
+            label()
+                .frame(width: 48, height: 38)
+                .background(fgColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 5))
+                .foregroundStyle(fgColor)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 #endif

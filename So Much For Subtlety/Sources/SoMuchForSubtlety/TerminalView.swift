@@ -20,12 +20,28 @@ struct TerminalHostView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Circle().fill(statusColor).frame(width: 7, height: 7)
+            // Spinner while not live (connecting/closed); green dot once connected.
+            ZStack {
+                if controller.isConnected {
+                    Circle().fill(statusColor).frame(width: 7, height: 7)
+                } else {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+            .frame(width: 14, alignment: .center)   // reserve space so the title doesn't jump
             Text(controller.title ?? fallbackTitle).font(.system(size: 12, weight: .medium))
             Spacer()
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .background(.quaternary.opacity(0.18))
+        // Connection watcher: every second, ping a live socket (to catch a silently dead one)
+        // and reconnect a closed one. Runs while this terminal is on screen.
+        .task(id: controller.paneId) {
+            while !Task.isCancelled {
+                controller.tickConnection()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 
     private var statusColor: Color {
