@@ -12,11 +12,14 @@ struct FloatingKeyboardView: View {
     let onHide: () -> Void
     let onActivate: () -> Void      // any tap on the keyboard (used to wake from faint)
     let theme: TerminalTheme        // keyboard reads as part of the terminal surface
+    let containerWidth: CGFloat     // available width, for absolute positioning
     let containerHeight: CGFloat    // available height, for clamping the vertical drag
     let topInset: CGFloat           // keyboard top must stay below this (the chrome bar)
     @Binding var position: CGSize   // persisted by the host so it survives hide/show
 
-    @GestureState private var dragOffset = CGSize.zero
+    @State private var liveTopY: CGFloat?
+    @State private var grabOffsetY: CGFloat?
+    @State private var dragging = false
     @State private var shift = false
     @State private var control = false
     @State private var option = false
@@ -31,14 +34,31 @@ struct FloatingKeyboardView: View {
         CGFloat(qwertyRows.count) * keyHeight + CGFloat(qwertyRows.count - 1) * rowSpacing
     }
 
-    /// Clamp the Y offset so the keyboard stays fully on-screen: its top can't rise
-    /// above `topInset`, and it can't drop below its resting (bottom) position.
-    private func clampedY(_ y: CGFloat) -> CGFloat {
-        guard containerHeight > 0, kbHeight > 0 else { return min(0, y) }
-        let restTop = containerHeight - bottomPad - kbHeight   // top edge at offset 0
-        let minY = topInset - restTop                          // most negative (highest)
-        return min(0, max(minY, y))
+    /// Resting top edge when the keyboard is docked to the bottom of the container.
+    private var restingTopY: CGFloat {
+        guard containerHeight > 0, kbHeight > 0 else { return 0 }
+        return containerHeight - bottomPad - kbHeight
     }
+
+    /// Clamp an absolute keyboard top edge so the panel stays fully on-screen.
+    private func clampedTopY(_ y: CGFloat) -> CGFloat {
+        guard containerHeight > 0, kbHeight > 0 else { return max(topInset, y) }
+        let minTop = topInset
+        let maxTop = max(minTop, restingTopY)
+        return min(maxTop, max(minTop, y))
+    }
+
+    /// Convert the persisted bottom-relative offset to an absolute top edge.
+    private var persistedTopY: CGFloat { clampedTopY(restingTopY + CGFloat(position.height)) }
+
+    /// Convert an absolute top edge back to the existing persisted offset format.
+    private func persistedOffset(forTopY topY: CGFloat) -> CGFloat { clampedTopY(topY) - restingTopY }
+
+    private func clampPersistedPositionIfIdle() {
+        guard !dragging else { return }
+        position.height = persistedOffset(forTopY: persistedTopY)
+    }
+
     private var surfaceColor: Color { Color(hex: theme.background.hex) ?? .black }
     private var fgColor: Color { Color(hex: theme.foreground.hex) ?? .white }
 
@@ -68,10 +88,13 @@ struct FloatingKeyboardView: View {
         )
         // Any tap on the panel wakes it from faint (key taps still fire their action).
         .simultaneousGesture(TapGesture().onEnded { onActivate() })
-        // Horizontally centered (x: 0), draggable only on the Y axis, clamped on-screen.
-        .offset(x: 0, y: clampedY(position.height + dragOffset.height))
-        .onChange(of: containerHeight) { _, _ in position.height = clampedY(position.height) }
-        .onChange(of: kbHeight) { _, _ in position.height = clampedY(position.height) }
+        // Position from an absolute top edge. During drag, the finger is the source of
+        // truth (`fingerY - grabOffsetY`); persisted bottom-relative offset is written only
+        // when the drag ends.
+        .position(x: containerWidth / 2, y: (liveTopY ?? persistedTopY) + kbHeight / 2)
+        .animation(nil, value: liveTopY)
+        .onChange(of: containerHeight) { _, _ in clampPersistedPositionIfIdle() }
+        .onChange(of: kbHeight) { _, _ in clampPersistedPositionIfIdle() }
     }
 
     // MARK: Header (tabs + drag handle + hide)
@@ -92,15 +115,30 @@ struct FloatingKeyboardView: View {
                     .buttonStyle(.plain).foregroundStyle(.secondary)
             }
             // Drag handle: centered on the keyboard, with an enlarged hit area. Only the
-            // handle drags (no minimum distance), so it tracks the finger exactly with no
-            // dead-zone jump, and never competes with taps on the picker/close button.
+            // handle drags; a small threshold avoids turning every tap/wiggle into a drag
+            // while keeping the movement responsive.
             Capsule().fill(.secondary.opacity(0.5)).frame(width: 56, height: 6)
                 .frame(width: 120, height: 36)
                 .contentShape(Rectangle())
                 .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .updating($dragOffset) { value, state, _ in state = value.translation }
-                        .onEnded { value in position.height = clampedY(position.height + value.translation.height) }
+                    DragGesture(minimumDistance: 6, coordinateSpace: .global)
+                        .onChanged { value in
+                            let currentTop = liveTopY ?? persistedTopY
+                            if grabOffsetY == nil {
+                                grabOffsetY = value.startLocation.y - currentTop
+                            }
+                            dragging = true
+                            let grab = grabOffsetY ?? 0
+                            liveTopY = clampedTopY(value.location.y - grab)
+                        }
+                        .onEnded { value in
+                            let grab = grabOffsetY ?? 0
+                            let finalTop = clampedTopY(value.location.y - grab)
+                            position.height = persistedOffset(forTopY: finalTop)
+                            liveTopY = nil
+                            grabOffsetY = nil
+                            dragging = false
+                        }
                 )
         }
         .padding(.horizontal, 4).padding(.vertical, 8)

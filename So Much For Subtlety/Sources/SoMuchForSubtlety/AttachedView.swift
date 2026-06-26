@@ -29,7 +29,7 @@ struct AttachedView: View {
     @State private var renamingWorkspaceId: String?
     @State private var renameDraft = ""
     #if os(iOS)
-    @State private var keyboardVisibility: KeyboardVisibility = .shown   // iPad floating keyboard
+    @State private var keyboardVisibility: KeyboardVisibility = .faint   // iPad floating keyboard
     @State private var keyboardVisibilityBeforeModal: KeyboardVisibility? // restore after a sheet closes
     @AppStorage("smfs.kbOffsetX") private var kbOffsetX: Double = 0      // remembered drag position
     @AppStorage("smfs.kbOffsetY") private var kbOffsetY: Double = 0
@@ -64,6 +64,7 @@ struct AttachedView: View {
     private var chromeGlyph: CGFloat { platformValue(17, mac: 11) }
     private var backendNameSize: CGFloat { platformValue(16, mac: 12) }
     private var backendIconFrame: CGSize { CGSize(width: chromeGlyph + 9, height: chromeGlyph + 7) }
+    private var chromeControlHeight: CGFloat { backendIconFrame.height }
     private var chromeSpacing: CGFloat { platformValue(18, mac: 8) }
     private var chromeMinHeight: CGFloat { platformValue(48, mac: 32) }
 
@@ -152,6 +153,7 @@ struct AttachedView: View {
                             if keyboardVisibility == .faint { withAnimation(.easeOut(duration: 0.18)) { keyboardVisibility = .shown } }
                         },
                         theme: AppTheme.matte.terminal,   // keyboard is always matte black, every theme
+                        containerWidth: geo.size.width,
                         containerHeight: geo.size.height,
                         topInset: chromeMinHeight + 12,
                         position: keyboardOffset
@@ -159,9 +161,7 @@ struct AttachedView: View {
                     .environment(\.colorScheme, .dark)   // keep handle/picker legible on the black surface
                     .disabled(!terminalConnected)        // dim + lock while the socket is down
                     .opacity(terminalConnected ? 1 : 0.45)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -295,20 +295,27 @@ struct AttachedView: View {
     private var topBar: some View {
         HStack(spacing: chromeSpacing) {
             Button(action: { withAnimation(.easeInOut(duration: 0.18)) { model.sidebarCollapsed.toggle() } }) {
-                Image(systemName: "sidebar.left").font(.system(size: chromeGlyph))
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: chromeGlyph))
+                    .frame(width: chromeControlHeight, height: chromeControlHeight, alignment: .center)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .help(model.sidebarCollapsed ? "Show terminals" : "Hide terminals")
 
             Button(action: { showingMachinePicker = true }) {
-                HStack(spacing: 5) {
-                    ForEach(model.icons(for: backend.id), id: \.self) { iconId in
-                        MachineIconGlyph(id: iconId, selected: true, compact: true, glyphSize: chromeGlyph, frameSize: backendIconFrame)
-                    }
+                HStack(alignment: .center, spacing: 5) {
                     Text(displayMachineName).font(.system(size: backendNameSize, weight: .medium))
                         .foregroundStyle(machineNameColor ?? Color.primary)
-                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 8)).foregroundStyle(.tertiary)
+                    ForEach(model.icons(for: backend.id), id: \.self) { iconId in
+                        MachineIconGlyph(id: iconId, selected: true, compact: true, glyphSize: chromeGlyph, frameSize: backendIconFrame, showBackground: false)
+                    }
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                        .frame(height: chromeControlHeight, alignment: .center)
                 }
+                .frame(height: chromeControlHeight, alignment: .center)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

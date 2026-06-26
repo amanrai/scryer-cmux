@@ -7,6 +7,7 @@ struct MachinePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     let currentBackendId: String
     let onSelect: (BackendMachine) -> Void
+    var kanbanerSelected = false
     var onKanbaner: () -> Void = {}
 
     private var selectable: [BackendMachine] { model.backends.filter(\.isSelectable) }
@@ -29,7 +30,7 @@ struct MachinePickerSheet: View {
                                 Text(backend.id).font(.caption.monospaced()).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if backend.id == currentBackendId {
+                            if !kanbanerSelected, backend.id == currentBackendId {
                                 Image(systemName: "checkmark").foregroundStyle(.tint)
                             }
                         }
@@ -45,7 +46,7 @@ struct MachinePickerSheet: View {
                     onKanbaner()
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "square.grid.3x1.below.line.grid.1x2")
+                        Image(systemName: "rectangle.split.3x1")
                             .foregroundStyle(.tint)
                             .frame(width: 8)
                         VStack(alignment: .leading, spacing: 2) {
@@ -53,7 +54,11 @@ struct MachinePickerSheet: View {
                             Text("Project board").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        if kanbanerSelected {
+                            Image(systemName: "checkmark").foregroundStyle(.tint)
+                        } else {
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        }
                     }
                     .contentShape(Rectangle())
                 }

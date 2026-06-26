@@ -82,7 +82,20 @@ struct SettingsView: View {
             Form { pageContent(for: page) }
                 .navigationTitle(page.rawValue)
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() }.fontWeight(.semibold) } }
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .semibold))
+                                .frame(width: 28, height: 28)
+                                .overlay(Circle().stroke(.secondary.opacity(0.45), lineWidth: 1))
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Close")
+                    }
+                }
         }
         .navigationSplitViewStyle(.balanced)
         .task(id: page) { if page == .gateway { await loadGateway() } }

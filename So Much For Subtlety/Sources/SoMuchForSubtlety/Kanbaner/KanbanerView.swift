@@ -20,6 +20,7 @@ struct KanbanerView: View {
     @State private var showingProjectPicker = false
     @State private var projectSearch = ""
     @State private var showingSettings = false
+    @State private var showingBackendPicker = false
     @AppStorage("smfs.kanbanerDetailWidth") private var detailWidth: Double = 460
     @State private var dragStartWidth: Double?
 
@@ -72,6 +73,16 @@ struct KanbanerView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(backendId: settingsBackendId, defaultMachineName: settingsBackendName).environment(model)
         }
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showingBackendPicker) {
+            CenteredModalCover(isPresented: $showingBackendPicker, width: 560) {
+                backendPicker
+            }
+            .presentationBackground(.clear)
+        }
+        #else
+        .sheet(isPresented: $showingBackendPicker) { backendPicker }
+        #endif
         .task {
             if board == nil {
                 let created = KanbanerModel(endpoint: model.pmEndpoint, initialProjectId: model.lastKanbanerProjectId)
@@ -136,15 +147,17 @@ struct KanbanerView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Button(action: { model.showingKanbaner = false }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left").font(.system(size: chromeGlyph, weight: .semibold))
-                    Text("Terminal").font(.system(size: 13))
+            Button(action: { showingBackendPicker = true }) {
+                HStack(spacing: 5) {
+                    Image(systemName: "rectangle.split.3x1").font(.system(size: chromeGlyph, weight: .semibold))
+                    Text("Kanbaner").font(.system(size: 13, weight: .medium))
+                    Image(systemName: "chevron.up.chevron.down").font(.system(size: 8)).foregroundStyle(fg.opacity(0.45))
                 }
                 .foregroundStyle(fg.opacity(0.85))
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Back to terminal")
+            .help("Select backend")
 
             Divider().frame(height: 14).overlay(fg.opacity(0.15))
 
@@ -178,6 +191,14 @@ struct KanbanerView: View {
         .background(chrome)
     }
 
+    private var backendPicker: some View {
+        MachinePickerSheet(currentBackendId: "", onSelect: { selected in
+            model.showingKanbaner = false
+            model.select(selected)
+        }, kanbanerSelected: true, onKanbaner: {})
+        .environment(model)
+    }
+
     private var settingsBackendId: String {
         if case .attached(let backend) = model.phase { return backend.id }
         return model.selectedBackend?.id ?? ""
@@ -198,7 +219,7 @@ struct KanbanerView: View {
                 // Project root crumb: click to return to the project (exits any drilldown).
                 Button { board.navigate(to: 0) } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: "square.grid.3x1.below.line.grid.1x2").font(.system(size: 11))
+                        Image(systemName: "rectangle.split.3x1").font(.system(size: 11))
                         Text(board.selectedProject?.name ?? "Project")
                             .font(.system(size: 13, weight: atRoot ? .semibold : .regular))
                             .lineLimit(1)

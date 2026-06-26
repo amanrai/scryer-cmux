@@ -34,6 +34,7 @@ struct MachineIconGlyph: View {
     var compact = false
     var glyphSize: CGFloat?
     var frameSize: CGSize?
+    var showBackground = true
 
     var body: some View {
         let size = glyphSize ?? (compact ? 10 : 12)
@@ -42,7 +43,11 @@ struct MachineIconGlyph: View {
             .font(.system(size: size, weight: .medium))
             .symbolRenderingMode(.monochrome)
             .frame(width: frame.width, height: frame.height)
-            .background(selected ? Color.accentColor.opacity(0.28) : Color.secondary.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: compact ? 3 : 4))
+            .background {
+                if showBackground {
+                    RoundedRectangle(cornerRadius: compact ? 3 : 4)
+                        .fill(selected ? Color.accentColor.opacity(0.28) : Color.secondary.opacity(0.12))
+                }
+            }
     }
 }
