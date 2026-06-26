@@ -14,6 +14,7 @@ struct KanbanerDetailView: View {
 
     @State private var title = ""
     @State private var desc = ""
+    @State private var editingTitle = false
     @State private var editingDesc = false
     @State private var confirmDelete = false
     @State private var seeded = false
@@ -62,15 +63,22 @@ struct KanbanerDetailView: View {
 
     private func content(_ task: PmTask) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Title (inline-editable)
-            TextField("Title", text: $title, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(fg)
-                .focused($titleFocused)
-                .onSubmit { commitTitle(task) }
-            if titleDirty(task) {
-                actionRow(save: { commitTitle(task) }, cancel: { title = task.title })
+            // Title — display text; tap to edit (matches the description + loom).
+            if editingTitle {
+                TextField("Title", text: $title, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(fg)
+                    .focused($titleFocused)
+                    .onSubmit { commitTitle(task) }
+                actionRow(save: { commitTitle(task) }, cancel: { title = task.title; editingTitle = false })
+            } else {
+                Text(task.title)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(fg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { title = task.title; editingTitle = true; titleFocused = true }
             }
 
             // Tags
@@ -171,19 +179,18 @@ struct KanbanerDetailView: View {
         }
     }
 
-    private func titleDirty(_ task: PmTask) -> Bool {
-        title.trimmingCharacters(in: .whitespacesAndNewlines) != task.title
-    }
     private func seed() {
         guard !seeded, let task else { return }
         title = task.title
         desc = task.description_md ?? ""
+        editingTitle = false
         editingDesc = false
         seeded = true
     }
     private func commitTitle(_ task: PmTask) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         titleFocused = false
+        editingTitle = false
         guard !trimmed.isEmpty, trimmed != task.title else { return }
         save(task, fields: ["title": trimmed])
     }
@@ -269,7 +276,13 @@ private struct CommentsSection: View {
                 ForEach(comments.reversed()) { comment in row(comment) }   // newest on top
             }
         }
-        .task(id: taskId) { await reload() }
+        .task(id: taskId) {
+            // Poll so comments stay live as the agent posts (drafts/edits are separate state).
+            while !Task.isCancelled {
+                await reload()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
     }
 
     private func row(_ comment: PmComment) -> some View {

@@ -188,6 +188,22 @@ public struct PmTask: Decodable, Identifiable, Sendable {
     public let project_id: String?
     public let tags: [PmTag]?
 
+    public init(id: String, title: String, status: String? = nil, updated_at: String? = nil,
+                description_md: String? = nil, display_order: Int? = nil,
+                task_type_id: String? = nil, parent_task_id: String? = nil,
+                project_id: String? = nil, tags: [PmTag]? = nil) {
+        self.id = id
+        self.title = title
+        self.status = status
+        self.updated_at = updated_at
+        self.description_md = description_md
+        self.display_order = display_order
+        self.task_type_id = task_type_id
+        self.parent_task_id = parent_task_id
+        self.project_id = project_id
+        self.tags = tags
+    }
+
     /// Copy with selected fields replaced — for optimistic board updates (drag/reorder)
     /// before the server round-trip lands.
     public func with(status newStatus: String? = nil, displayOrder newOrder: Int? = nil,

@@ -18,7 +18,7 @@ struct SettingsView: View {
             case .audio: return "waveform"
             case .backends: return "desktopcomputer"
             case .controls: return "switch.2"
-            case .kanbaner: return "square.grid.3x1.below.line.grid.1x2"
+            case .kanbaner: return "rectangle.split.3x1"
             case .gateway: return "point.3.connected.trianglepath.dotted"
             }
         }
@@ -233,6 +233,7 @@ struct SettingsView: View {
             Toggle("Interactions", isOn: hostButtonBinding(\.interaction))
             Toggle("Agent Updates", isOn: hostButtonBinding(\.agentUpdates))
             Toggle("Scryer Picker", isOn: hostButtonBinding(\.scryer))
+            Toggle("Ticket Details", isOn: hostButtonBinding(\.ticketDetail))
             Toggle("Audio Input", isOn: hostButtonBinding(\.audioInput))
             Toggle("Reconnect", isOn: hostButtonBinding(\.reconnect))
         } header: {

@@ -118,6 +118,8 @@ struct ScryerPickerView: View {
     let backendId: String
     let endpoint: GatewayEndpoint
     let onSend: (String) -> Void
+    /// Reports the chosen ticket (+ its project id) so the host can track it per pane.
+    var onPick: (PmTask, String) -> Void = { _, _ in }
 
     @State private var projects: [PmProject] = []
     @State private var tasks: [PmTask] = []
@@ -290,6 +292,7 @@ struct ScryerPickerView: View {
             Button("Set") {
                 if let project = selectedProject { onSend("/pp \(project.id)\r") }
                 if let task = selectedTask { onSend("/tp \(task.id)\r") }
+                if let project = selectedProject, let task = selectedTask { onPick(task, project.id) }
                 dismiss()
             }
             .buttonStyle(.borderedProminent)

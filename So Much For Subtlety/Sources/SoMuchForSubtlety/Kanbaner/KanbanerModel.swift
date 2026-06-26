@@ -138,6 +138,14 @@ final class KanbanerModel {
         await loadTasks(projectId: id)
     }
 
+    /// Focus a single task's project (for the standalone terminal-side ticket detail). Seeds
+    /// `tasks` with the known task so the panel shows immediately, then loads the real data.
+    func focus(on task: PmTask, projectId: String) async {
+        selectedProjectId = projectId
+        if tasks.first(where: { $0.id == task.id }) == nil { tasks = [task] }
+        await loadTasks(projectId: projectId)
+    }
+
     private func loadTasks(projectId: String) async {
         loadingTasks = true; defer { loadingTasks = false }
         do {

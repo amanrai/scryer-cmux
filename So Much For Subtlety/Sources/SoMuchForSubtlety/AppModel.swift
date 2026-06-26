@@ -8,6 +8,7 @@ struct HostButtonSettings: Codable, Equatable {
     var interaction = true
     var agentUpdates = true
     var scryer = true
+    var ticketDetail = true
     var audioInput = true
     var reconnect = false
     var quickInputs = false
@@ -20,6 +21,7 @@ struct HostButtonSettings: Codable, Equatable {
         interaction = try container.decodeIfPresent(Bool.self, forKey: .interaction) ?? true
         agentUpdates = try container.decodeIfPresent(Bool.self, forKey: .agentUpdates) ?? true
         scryer = try container.decodeIfPresent(Bool.self, forKey: .scryer) ?? true
+        ticketDetail = try container.decodeIfPresent(Bool.self, forKey: .ticketDetail) ?? true
         audioInput = try container.decodeIfPresent(Bool.self, forKey: .audioInput) ?? true
         reconnect = try container.decodeIfPresent(Bool.self, forKey: .reconnect) ?? false
         quickInputs = try container.decodeIfPresent(Bool.self, forKey: .quickInputs) ?? false
@@ -84,6 +86,60 @@ final class AppModel {
     /// Whether the Kanbaner board is currently shown (over the attached terminal screen).
     var showingKanbaner = false
 
+    /// The PM ticket set via the Scryer picker (`/pp` + `/tp`). Kept per-pane for immediate
+    /// session UI and persisted per producer `from` so returning to the same agent session
+    /// restores its project/ticket choice.
+    struct PaneTicket {
+        let task: PmTask
+        let projectId: String
+    }
+    private struct StoredTicket: Codable {
+        let projectId: String
+        let taskId: String
+        let title: String
+        let status: String?
+        let updatedAt: String?
+        let descriptionMd: String?
+
+        init(task: PmTask, projectId: String) {
+            self.projectId = projectId
+            self.taskId = task.id
+            self.title = task.title
+            self.status = task.status
+            self.updatedAt = task.updated_at
+            self.descriptionMd = task.description_md
+        }
+
+        var paneTicket: PaneTicket {
+            PaneTicket(task: PmTask(id: taskId, title: title, status: status, updated_at: updatedAt,
+                                    description_md: descriptionMd, project_id: projectId),
+                       projectId: projectId)
+        }
+    }
+
+    var ticketByPane: [String: PaneTicket] = [:]
+    private var ticketByProducer: [String: StoredTicket] = [:] {
+        didSet {
+            if let data = try? JSONEncoder().encode(ticketByProducer) {
+                UserDefaults.standard.set(data, forKey: Self.ticketByProducerKey)
+            }
+        }
+    }
+
+    func setTicket(_ task: PmTask, projectId: String, forPane paneId: String, producerFrom: String?) {
+        let ticket = PaneTicket(task: task, projectId: projectId)
+        ticketByPane[paneId] = ticket
+        if let producerFrom, !producerFrom.isEmpty {
+            ticketByProducer[producerFrom] = StoredTicket(task: task, projectId: projectId)
+        }
+    }
+
+    func ticket(forPane paneId: String?, producerFrom: String?) -> PaneTicket? {
+        if let producerFrom, let stored = ticketByProducer[producerFrom] { return stored.paneTicket }
+        guard let paneId else { return nil }
+        return ticketByPane[paneId]
+    }
+
     /// Last project opened in the Kanbaner, restored on reopen. Persisted.
     var lastKanbanerProjectId: String? {
         didSet { UserDefaults.standard.set(lastKanbanerProjectId, forKey: Self.lastKanbanerProjectKey) }
@@ -99,6 +155,7 @@ final class AppModel {
     private static let pmHostKey = "smfs.pmHost"
     private static let interactionsHostKey = "smfs.interactionsHost"
     private static let lastKanbanerProjectKey = "smfs.lastKanbanerProject"
+    private static let ticketByProducerKey = "smfs.ticketByProducer"
 
     static let fontSizeRange: ClosedRange<Double> = 8...28
     static let voicePauseRange: ClosedRange<Double> = 3...15
@@ -172,6 +229,10 @@ final class AppModel {
         self.lastWorkspaceByBackend = UserDefaults.standard.dictionary(forKey: Self.lastWorkspaceKey) as? [String: String] ?? [:]
         self.sidebarCollapsed = UserDefaults.standard.bool(forKey: Self.sidebarCollapsedKey)
         self.machineIcons = UserDefaults.standard.dictionary(forKey: Self.machineIconsKey) as? [String: [String]] ?? [:]
+        if let data = UserDefaults.standard.data(forKey: Self.ticketByProducerKey),
+           let decoded = try? JSONDecoder().decode([String: StoredTicket].self, from: data) {
+            self.ticketByProducer = decoded
+        }
         if let data = UserDefaults.standard.data(forKey: Self.hostButtonsKey),
            let decoded = try? JSONDecoder().decode(HostButtonSettings.self, from: data) {
             self.hostButtons = decoded

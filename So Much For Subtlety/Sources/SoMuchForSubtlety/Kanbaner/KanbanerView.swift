@@ -209,58 +209,66 @@ struct KanbanerView: View {
         return model.selectedBackend?.label ?? "Backend"
     }
 
-    /// Clickable breadcrumb: the project (root) crumb returns to the project board — useful
-    /// when drilled into a sub-ticket — and a compact picker switches projects. Drilled-into
-    /// feature crumbs follow and navigate back up on tap.
+    /// Breadcrumb/navigation split: project name always opens project selection; a separate
+    /// up control navigates within the current project's nested ticket hierarchy.
     @ViewBuilder private var breadcrumb: some View {
         if let board {
-            HStack(spacing: 6) {
-                let atRoot = board.navStack.count <= 1
-                // Project root crumb: click to return to the project (exits any drilldown).
-                Button { board.navigate(to: 0) } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "rectangle.split.3x1").font(.system(size: 11))
-                        Text(board.selectedProject?.name ?? "Project")
-                            .font(.system(size: 13, weight: atRoot ? .semibold : .regular))
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(atRoot ? fg : fg.opacity(0.6))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
+            HStack(spacing: 8) {
                 projectSwitcher
 
-                ForEach(Array(board.navStack.enumerated()).dropFirst(), id: \.element.id) { pair in
-                    let index = pair.offset
-                    let isLast = index == board.navStack.count - 1
-                    Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(fg.opacity(0.3))
-                    Button { board.navigate(to: index) } label: {
-                        Text(pair.element.name)
-                            .font(.system(size: 13, weight: isLast ? .semibold : .regular))
-                            .foregroundStyle(isLast ? fg : fg.opacity(0.6))
-                            .lineLimit(1)
+                if board.navStack.count > 1 {
+                    Button { board.navigate(to: max(0, board.navStack.count - 2)) } label: {
+                        Image(systemName: "arrow.uturn.left")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(fg.opacity(0.65))
+                            .frame(width: 26, height: 24)
+                            .background(fg.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .disabled(isLast)
+                    .help("Back one level")
+
+                    ForEach(Array(board.navStack.enumerated()).dropFirst(), id: \.element.id) { pair in
+                        let index = pair.offset
+                        let isLast = index == board.navStack.count - 1
+                        if index > 1 {
+                            Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(fg.opacity(0.3))
+                        }
+                        Button { board.navigate(to: index) } label: {
+                            Text(pair.element.name)
+                                .font(.system(size: 13, weight: isLast ? .semibold : .regular))
+                                .foregroundStyle(isLast ? fg : fg.opacity(0.6))
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isLast)
+                    }
                 }
             }
         }
     }
 
-    /// Searchable project switcher (replaces the cramped menu next to the project crumb).
+    /// Searchable project switcher. The whole project-name control opens the picker.
     @ViewBuilder private var projectSwitcher: some View {
         if let board {
             Button {
                 projectSearch = ""
                 showingProjectPicker = true
             } label: {
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(fg.opacity(0.45))
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
+                HStack(spacing: 6) {
+                    Image(systemName: "rectangle.split.3x1").font(.system(size: 11, weight: .semibold))
+                    Text(board.selectedProject?.name ?? "Project")
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(fg.opacity(0.45))
+                }
+                .foregroundStyle(fg)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(fg.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .popover(isPresented: $showingProjectPicker, arrowEdge: .top) {

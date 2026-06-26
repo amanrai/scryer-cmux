@@ -28,6 +28,11 @@ struct AttachedView: View {
     @State private var hoveredWorkspaceId: String?
     @State private var renamingWorkspaceId: String?
     @State private var renameDraft = ""
+    // Terminal-side ticket detail (the ticket set via the Scryer picker).
+    @State private var showingTicket = false
+    @State private var ticketBoard: KanbanerModel?
+    @AppStorage("smfs.kanbanerDetailWidth") private var detailWidth: Double = 460
+    @State private var ticketDragStartWidth: Double?
     #if os(iOS)
     @State private var keyboardVisibility: KeyboardVisibility = .faint   // iPad floating keyboard
     @State private var keyboardVisibilityBeforeModal: KeyboardVisibility? // restore after a sheet closes
@@ -37,7 +42,7 @@ struct AttachedView: View {
     private var anyModalOpen: Bool {
         showingSettings || showingMachinePicker || showingQuickInputs
             || showingInteraction || showingActivity || showingScryerPicker
-            || showingDictation || renamingWorkspaceId != nil
+            || showingDictation || showingTicket || renamingWorkspaceId != nil
     }
     private var keyboardOffset: Binding<CGSize> {
         Binding(get: { CGSize(width: kbOffsetX, height: kbOffsetY) },
@@ -141,6 +146,8 @@ struct AttachedView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(chromeBackground)   // chrome is the container; the terminal nests inside it
+        .overlay { ticketDetailOverlay }
+        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: showingTicket)
         #if os(iOS)
         .overlay(alignment: .bottom) {
             if keyboardVisibility == .shown, let controller = activeController {
@@ -248,7 +255,7 @@ struct AttachedView: View {
         .fullScreenCover(isPresented: $showingScryerPicker) {
             if let endpoint = model.endpoint {
                 ScryerCover(isPresented: $showingScryerPicker) {
-                    ScryerPickerView(backendId: backend.id, endpoint: endpoint) { text in activeController?.send(text) }
+                    ScryerPickerView(backendId: backend.id, endpoint: endpoint, onSend: { text in activeController?.send(text) }, onPick: rememberTicket)
                 }
                 .presentationBackground(.clear)
             }
@@ -256,7 +263,7 @@ struct AttachedView: View {
         #else
         .sheet(isPresented: $showingScryerPicker) {
             if let endpoint = model.endpoint {
-                ScryerPickerView(backendId: backend.id, endpoint: endpoint) { text in activeController?.send(text) }
+                ScryerPickerView(backendId: backend.id, endpoint: endpoint, onSend: { text in activeController?.send(text) }, onPick: rememberTicket)
             }
         }
         #endif
@@ -270,6 +277,9 @@ struct AttachedView: View {
         // Re-scan terminal state for the producer marker whenever the active pane
         // changes, so "listening" reflects the terminal we just switched to.
         .onChange(of: selectedPaneId) { _, _ in activeController?.refreshProducerState() }
+        // If a ticket was picked before the producer marker was detected, persist that
+        // pane choice as soon as the producer becomes known.
+        .onChange(of: activeController?.producerFrom) { _, _ in persistPaneTicketForProducerIfNeeded() }
         #if os(iOS)
         // Any sheet opening hides the floating keyboard; closing restores its prior state.
         .onChange(of: anyModalOpen) { _, open in
@@ -394,6 +404,16 @@ struct AttachedView: View {
             Button { showingScryerPicker = true } label: { Image(systemName: "rectangle.3.group").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless).help("Scryer project & ticket")
         }
+        if model.hostButtons.ticketDetail {
+            // Ticket detail for the pane's set ticket — disabled until one is picked.
+            let hasTicket = currentTicket != nil
+            Button { openTicketDetail() } label: {
+                Image(systemName: "doc.text.magnifyingglass").font(.system(size: chromeGlyph))
+            }
+            .buttonStyle(.borderless)
+            .disabled(!hasTicket)
+            .help(hasTicket ? "Ticket details" : "Set a ticket first")
+        }
         if model.hostButtons.fontSize {
             Button { adjustFontSize(-1) } label: { Image(systemName: "minus.magnifyingglass").font(.system(size: chromeGlyph)) }
                 .buttonStyle(.borderless).help("Decrease font size")
@@ -441,7 +461,94 @@ struct AttachedView: View {
     }
 
     private var activityModalContent: some View {
-        ActivityModalView(updates: activeController?.updates ?? [])
+        if let from = activeController?.producerFrom {
+            ActivityModalView(updates: model.interactions.updates(for: from))
+        } else {
+            ActivityModalView(updates: [])
+        }
+    }
+
+    // MARK: Ticket detail (terminal-side)
+
+    private var currentTicket: AppModel.PaneTicket? {
+        model.ticket(forPane: selectedPaneId, producerFrom: activeController?.producerFrom)
+    }
+
+    private func persistPaneTicketForProducerIfNeeded() {
+        guard let paneId = selectedPaneId,
+              let from = activeController?.producerFrom,
+              let ticket = model.ticket(forPane: paneId, producerFrom: nil)
+        else { return }
+        model.setTicket(ticket.task, projectId: ticket.projectId, forPane: paneId, producerFrom: from)
+    }
+
+    /// Record the ticket the Scryer picker just set for the active pane and producer.
+    private func rememberTicket(_ task: PmTask, projectId: String) {
+        guard let paneId = selectedPaneId else { return }
+        model.setTicket(task, projectId: projectId, forPane: paneId, producerFrom: activeController?.producerFrom)
+    }
+
+    /// Open the right-sliding detail panel for the pane's set ticket, backed by a focused board.
+    private func openTicketDetail() {
+        guard let ticket = currentTicket else { return }
+        let board = KanbanerModel(endpoint: model.pmEndpoint, initialProjectId: ticket.projectId)
+        ticketBoard = board
+        showingTicket = true
+        Task { await board.focus(on: ticket.task, projectId: ticket.projectId) }
+    }
+
+    private func closeTicketDetail() { showingTicket = false }
+
+    /// Detail panel over the terminal: dim backdrop + right-sliding panel, refreshed every
+    /// second while open (the agent keeps working). Same panel/resize as the Kanbaner board.
+    @ViewBuilder private var ticketDetailOverlay: some View {
+        if showingTicket, let board = ticketBoard, let ticket = currentTicket {
+            let fg = Color(hex: model.theme.terminal.foreground.hex) ?? .white
+            ZStack(alignment: .trailing) {
+                Color.black.opacity(0.55).ignoresSafeArea()
+                    .onTapGesture { closeTicketDetail() }
+                    .transition(.opacity)
+                GeometryReader { geo in
+                    let maxWidth = geo.size.width * 0.95
+                    let width = min(max(detailWidth, 340), maxWidth)
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        ticketResizeHandle(maxWidth: maxWidth, fg: fg)
+                        KanbanerDetailView(taskId: ticket.task.id, board: board, fg: fg, panelBg: chromeBackground) { closeTicketDetail() }
+                            .frame(width: width)
+                            .frame(maxHeight: .infinity)
+                    }
+                }
+                .transition(.move(edge: .trailing))
+            }
+            .task(id: ticket.task.id) {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    await board.reload()
+                }
+            }
+        }
+    }
+
+    private func ticketResizeHandle(maxWidth: Double, fg: Color) -> some View {
+        ZStack {
+            Color.black.opacity(0.001)
+            Capsule().fill(fg.opacity(0.35)).frame(width: 4, height: 44)
+        }
+        .frame(width: 18).frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    let start = ticketDragStartWidth ?? detailWidth
+                    if ticketDragStartWidth == nil { ticketDragStartWidth = start }
+                    detailWidth = min(max(start - value.translation.width, 340), maxWidth)
+                }
+                .onEnded { _ in ticketDragStartWidth = nil }
+        )
+        #if os(macOS)
+        .onHover { inside in if inside { NSCursor.resizeLeftRight.set() } else { NSCursor.arrow.set() } }
+        #endif
     }
 
     // Resolve (creating if needed) the controller for the selected pane. Using
