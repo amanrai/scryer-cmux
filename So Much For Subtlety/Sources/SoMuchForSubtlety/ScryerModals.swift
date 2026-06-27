@@ -86,8 +86,11 @@ struct InteractionModalView: View {
 // MARK: Activity
 
 struct ActivityModalView: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let updates: [SessionUpdate]
+
+    private var panelBg: Color { Color(hex: model.theme.terminal.background.hex) ?? .black }
 
     // Read-only feed: no dismiss controls, just the close button.
     var body: some View {
@@ -103,7 +106,7 @@ struct ActivityModalView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background(panelBg)
         .modalChrome("Agent Activity", systemImage: "list.bullet.rectangle", width: 440, height: 460)
     }
 }
@@ -114,6 +117,7 @@ struct ActivityModalView: View {
 /// the left and a wider tickets column (with descriptions) on the right. Each column has
 /// its own search; tickets sort by last-updated. Picking sends `/pp` (+ optional `/tp`).
 struct ScryerPickerView: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let backendId: String
     let endpoint: GatewayEndpoint
@@ -131,6 +135,8 @@ struct ScryerPickerView: View {
     @State private var loadingProjects = true
     @State private var loadingTasks = false
     @State private var error: String?
+
+    private var panelBg: Color { Color(hex: model.theme.terminal.background.hex) ?? .black }
 
     private var filteredProjects: [PmProject] {
         let q = projectQuery.trimmingCharacters(in: .whitespaces).lowercased()
@@ -161,7 +167,7 @@ struct ScryerPickerView: View {
             Divider()
             actionBar
         }
-        .background(.background)
+        .background(panelBg)
         #if os(macOS)
         .frame(width: 760, height: 540)
         #endif
@@ -375,8 +381,12 @@ struct ScryerPickerView: View {
 /// corner rounding — presented inside a transparent `fullScreenCover` so we control the
 /// size and shape (a system sheet can't be sized to 85% width on iPad in iOS 17).
 struct ScryerCover<Content: View>: View {
+    @Environment(AppModel.self) private var model
     @Binding var isPresented: Bool
     @ViewBuilder var content: Content
+
+    private var panelBg: Color { Color(hex: model.theme.terminal.background.hex) ?? .black }
+    private var stroke: Color { Color(hex: model.theme.terminal.foreground.hex)?.opacity(0.16) ?? .white.opacity(0.16) }
 
     var body: some View {
         GeometryReader { geo in
@@ -385,21 +395,27 @@ struct ScryerCover<Content: View>: View {
                     .onTapGesture { isPresented = false }
                 content
                     .frame(width: geo.size.width * 0.85, height: geo.size.height * 0.85)
+                    .background(panelBg)
                     .clipShape(RoundedRectangle(cornerRadius: 3))
-                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(.black.opacity(0.18)))
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(stroke))
                     .shadow(color: .black.opacity(0.4), radius: 30)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .preferredColorScheme(model.theme.isDark ? .dark : .light)
     }
 }
 /// Centered, near-full-height panel for compact utility modals. Unlike `ScryerCover`, this
 /// keeps a fixed readable width while avoiding iPad's bottom-attached sheet detents.
 struct CenteredModalCover<Content: View>: View {
+    @Environment(AppModel.self) private var model
     @Binding var isPresented: Bool
     let width: CGFloat
     var heightRatio: CGFloat = 0.92
     @ViewBuilder var content: Content
+
+    private var panelBg: Color { Color(hex: model.theme.terminal.background.hex) ?? .black }
+    private var stroke: Color { Color(hex: model.theme.terminal.foreground.hex)?.opacity(0.16) ?? .white.opacity(0.16) }
 
     var body: some View {
         GeometryReader { geo in
@@ -408,12 +424,14 @@ struct CenteredModalCover<Content: View>: View {
                     .onTapGesture { isPresented = false }
                 content
                     .frame(width: min(width, geo.size.width * 0.92), height: geo.size.height * heightRatio)
+                    .background(panelBg)
                     .clipShape(RoundedRectangle(cornerRadius: 3))
-                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(.black.opacity(0.18)))
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(stroke))
                     .shadow(color: .black.opacity(0.4), radius: 30)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .preferredColorScheme(model.theme.isDark ? .dark : .light)
     }
 }
 #endif
@@ -474,8 +492,10 @@ extension View {
     func modalList() -> some View {
         #if os(iOS)
         listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
         #else
         listStyle(.inset)
+            .scrollContentBackground(.hidden)
         #endif
     }
 }
@@ -486,26 +506,40 @@ private struct ModalChrome: ViewModifier {
     let width: CGFloat
     let height: CGFloat
     let detents: Set<PresentationDetent>
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+
+    private var panelBg: Color { Color(hex: model.theme.terminal.background.hex) ?? .black }
+    private var chromeBg: Color { Color(hex: model.theme.terminal.chrome.hex) ?? panelBg }
+    private var fg: Color { Color(hex: model.theme.terminal.foreground.hex) ?? .white }
 
     func body(content: Content) -> some View {
         #if os(iOS)
         VStack(spacing: 0) {
             modalHeader(title, systemImage: systemImage) { dismiss() }
-            Divider()
+                .background(chromeBg)
+            Divider().overlay(fg.opacity(0.12))
             content
+                .background(panelBg)
         }
-        .background(.background)
+        .background(panelBg)
+        .foregroundStyle(fg)
         .presentationDetents(detents)
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(6)   // square off the system sheet's large default radius
+        .preferredColorScheme(model.theme.isDark ? .dark : .light)
         #else
         VStack(spacing: 0) {
             modalHeader(title, systemImage: systemImage) { dismiss() }
-            Divider()
+                .background(chromeBg)
+            Divider().overlay(fg.opacity(0.12))
             content
+                .background(panelBg)
         }
+        .background(panelBg)
+        .foregroundStyle(fg)
         .frame(width: width, height: height)
+        .preferredColorScheme(model.theme.isDark ? .dark : .light)
         #endif
     }
 }

@@ -31,9 +31,13 @@ struct SettingsView: View {
 
     private var reachable: [BackendMachine] { model.backends.filter(\.isSelectable) }
     private var selectedLabel: String { model.backends.first { $0.id == selectedBackendId }?.label ?? defaultMachineName }
+    private var themeBg: Color { Color(hex: model.theme.terminal.background.hex) ?? .black }
+    private var themeChrome: Color { Color(hex: model.theme.terminal.chrome.hex) ?? themeBg }
+    private var themeFg: Color { Color(hex: model.theme.terminal.foreground.hex) ?? .white }
 
     var body: some View {
         content
+            .preferredColorScheme(model.theme.isDark ? .dark : .light)
             .onAppear { if selectedBackendId.isEmpty { selectedBackendId = backendId } }
     }
 
@@ -69,38 +73,65 @@ struct SettingsView: View {
     }
     #else
     private var content: some View {
-        // iPad-native: a sidebar + detail split (collapses to a drill-down on iPhone),
-        // matching the macOS layout and Settings.app on iPad.
-        NavigationSplitView {
-            List(selection: pageSelection) {
-                ForEach(Page.allCases) { item in
-                    Label(item.rawValue, systemImage: item.symbol).tag(item)
-                }
-            }
-            .navigationTitle("Settings")
-        } detail: {
-            Form { pageContent(for: page) }
-                .navigationTitle(page.rawValue)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .semibold))
-                                .frame(width: 28, height: 28)
-                                .overlay(Circle().stroke(.secondary.opacity(0.45), lineWidth: 1))
-                                .contentShape(Circle())
+        // Custom fixed split: avoids NavigationSplitView's sidebar-collapse affordance and
+        // gives us square, app-controlled sidebar selection highlights.
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Settings")
+                    .font(.headline)
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                Divider()
+                VStack(spacing: 0) {
+                    ForEach(Page.allCases) { item in
+                        Button { page = item } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: item.symbol).frame(width: 20)
+                                Text(item.rawValue).font(.system(size: 15, weight: page == item ? .semibold : .regular))
+                                Spacer()
+                            }
+                            .foregroundStyle(page == item ? themeFg : themeFg.opacity(0.65))
+                            .padding(.horizontal, 14).padding(.vertical, 11)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(page == item ? Color.accentColor.opacity(0.18) : Color.clear)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Close")
                     }
                 }
+                Spacer()
+            }
+            .frame(width: 220)
+            .background(themeChrome)
+
+            Divider()
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text(page.rawValue).font(.headline)
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: 28, height: 28)
+                            .overlay(Circle().stroke(.secondary.opacity(0.45), lineWidth: 1))
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Close")
+                }
+                .padding(.horizontal, 18).padding(.vertical, 14)
+                Divider()
+                Form { pageContent(for: page) }
+                    .formStyle(.grouped)
+                    .scrollContentBackground(.hidden)
+                    .background(themeBg)
+            }
+            .background(themeBg)
         }
-        .navigationSplitViewStyle(.balanced)
+        .foregroundStyle(themeFg)
+        .background(themeBg)
         .task(id: page) { if page == .gateway { await loadGateway() } }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
     }
     #endif
 
@@ -148,7 +179,7 @@ struct SettingsView: View {
             Picker("Theme", selection: themeBinding) {
                 ForEach(AppTheme.allCases) { Text($0.displayName).tag($0) }
             }
-            LabeledContent("Font size") {
+            LabeledContent("Terminal Font Size") {
                 HStack(spacing: 12) {
                     Slider(value: fontSizeBinding, in: AppModel.fontSizeRange, step: 1).frame(width: 180)
                     Text("\(Int(model.fontSize)) pt").font(.callout.monospaced()).foregroundStyle(.secondary)

@@ -70,9 +70,18 @@ struct KanbanerView: View {
         .ignoresSafeArea(.container, edges: .top)
         #endif
         .animation(.spring(response: 0.34, dampingFraction: 0.84), value: selection)
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showingSettings) {
+            ScryerCover(isPresented: $showingSettings) {
+                SettingsView(backendId: settingsBackendId, defaultMachineName: settingsBackendName).environment(model)
+            }
+            .presentationBackground(.clear)
+        }
+        #else
         .sheet(isPresented: $showingSettings) {
             SettingsView(backendId: settingsBackendId, defaultMachineName: settingsBackendName).environment(model)
         }
+        #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showingBackendPicker) {
             CenteredModalCover(isPresented: $showingBackendPicker, width: 560) {
@@ -116,6 +125,9 @@ struct KanbanerView: View {
             }
             .transition(.move(edge: .trailing))
         }
+        #if os(macOS)
+        .background(WindowBackgroundDragSetter(isMovable: false))
+        #endif
     }
 
     /// Drag handle just left of the detail panel; width is persisted live.

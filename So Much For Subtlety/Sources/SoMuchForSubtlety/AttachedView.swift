@@ -198,9 +198,18 @@ struct AttachedView: View {
             if new == .background { wasBackgrounded = true }
             else if new == .active, wasBackgrounded { wasBackgrounded = false; activeController?.reconnect() }
         }
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showingSettings) {
+            ScryerCover(isPresented: $showingSettings) {
+                SettingsView(backendId: backend.id, defaultMachineName: state?.hostName ?? backend.label).environment(model)
+            }
+            .presentationBackground(.clear)
+        }
+        #else
         .sheet(isPresented: $showingSettings) {
             SettingsView(backendId: backend.id, defaultMachineName: state?.hostName ?? backend.label).environment(model)
         }
+        #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showingMachinePicker) {
             CenteredModalCover(isPresented: $showingMachinePicker, width: 560) {
@@ -527,6 +536,9 @@ struct AttachedView: View {
                     await board.reload()
                 }
             }
+            #if os(macOS)
+            .background(WindowBackgroundDragSetter(isMovable: false))
+            #endif
         }
     }
 

@@ -90,4 +90,24 @@ struct WindowAccessor: NSViewRepresentable {
         DispatchQueue.main.async { if let window = nsView.window { configure(window) } }
     }
 }
+
+/// Temporarily toggles background window dragging while an overlay is mounted. This keeps
+/// detail-drawer resize handles from being interpreted as window drags on macOS.
+struct WindowBackgroundDragSetter: NSViewRepresentable {
+    let isMovable: Bool
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { view.window?.isMovableByWindowBackground = isMovable }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { nsView.window?.isMovableByWindowBackground = isMovable }
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
+        DispatchQueue.main.async { nsView.window?.isMovableByWindowBackground = true }
+    }
+}
 #endif
