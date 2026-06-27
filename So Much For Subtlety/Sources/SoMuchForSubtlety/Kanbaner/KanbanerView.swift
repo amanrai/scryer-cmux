@@ -19,6 +19,7 @@ struct KanbanerView: View {
     @State private var addDraft = ""
     @State private var showingProjectPicker = false
     @State private var projectSearch = ""
+    @State private var hiddenProjectsExpanded = false
     @State private var showingSettings = false
     @State private var showingBackendPicker = false
     @AppStorage("smfs.kanbanerDetailWidth") private var detailWidth: Double = 460
@@ -84,7 +85,7 @@ struct KanbanerView: View {
         #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showingBackendPicker) {
-            CenteredModalCover(isPresented: $showingBackendPicker, width: 560) {
+            CenteredModalCover(isPresented: $showingBackendPicker, width: 560, heightRatio: 0.56) {
                 backendPicker
             }
             .presentationBackground(.clear)
@@ -125,6 +126,7 @@ struct KanbanerView: View {
             }
             .transition(.move(edge: .trailing))
         }
+        .dismissOnEscape { selection = nil }
         #if os(macOS)
         .background(WindowBackgroundDragSetter(isMovable: false))
         #endif
@@ -169,7 +171,8 @@ struct KanbanerView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Select backend")
+            .keyboardShortcut("k", modifiers: .command)
+            .help("Select backend (⌘K)")
 
             Divider().frame(height: 14).overlay(fg.opacity(0.15))
 
@@ -207,7 +210,10 @@ struct KanbanerView: View {
         MachinePickerSheet(currentBackendId: "", onSelect: { selected in
             model.showingKanbaner = false
             model.select(selected)
-        }, kanbanerSelected: true, onKanbaner: {})
+        }, kanbanerSelected: true, onKanbaner: {}, onProjectOrganizer: {
+            model.showingKanbaner = false
+            model.showingProjectOrganizer = true
+        })
         .environment(model)
     }
 
@@ -266,6 +272,7 @@ struct KanbanerView: View {
         if let board {
             Button {
                 projectSearch = ""
+                hiddenProjectsExpanded = false
                 showingProjectPicker = true
             } label: {
                 HStack(spacing: 6) {
@@ -309,10 +316,17 @@ struct KanbanerView: View {
 
             ScrollView {
                 LazyVStack(spacing: 2) {
-                    ForEach(filteredProjects(board)) { project in
-                        projectRow(project, board: board)
+                    ForEach(filteredVisibleProjectNodes(board)) { node in
+                        projectRow(node, board: board)
                     }
-                    if filteredProjects(board).isEmpty {
+                    let hiddenNodes = filteredHiddenProjectNodes(board)
+                    if !hiddenNodes.isEmpty {
+                        hiddenProjectsDisclosure
+                        if hiddenProjectsExpanded {
+                            ForEach(hiddenNodes) { node in projectRow(node, board: board) }
+                        }
+                    }
+                    if filteredProjectNodes(board).isEmpty {
                         Text("No matching projects")
                             .font(.system(size: 13))
                             .foregroundStyle(fg.opacity(0.5))
@@ -325,19 +339,53 @@ struct KanbanerView: View {
         }
         .frame(width: 360, height: 420)
         .background(bg)
+        .dismissOnEscape { showingProjectPicker = false }
     }
 
-    private func filteredProjects(_ board: KanbanerModel) -> [PmProject] {
+    private func filteredProjectNodes(_ board: KanbanerModel) -> [KanbanerModel.ProjectNode] {
         let q = projectSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return board.projects }
-        return board.projects.filter { project in
-            "\(project.name) \(project.slug ?? "") \(project.relative_repo_path ?? "")"
+        guard !q.isEmpty else { return board.projectTree }
+        return board.projectTree.filter { node in
+            let project = node.project
+            return "\(project.name) \(project.slug ?? "") \(project.relative_repo_path ?? "")"
                 .lowercased()
                 .contains(q)
         }
     }
 
-    private func projectRow(_ project: PmProject, board: KanbanerModel) -> some View {
+    private func filteredVisibleProjectNodes(_ board: KanbanerModel) -> [KanbanerModel.ProjectNode] {
+        let q = projectSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return board.visibleProjectTree }
+        return filteredProjectNodes(board).filter { !$0.hidden }
+    }
+
+    private func filteredHiddenProjectNodes(_ board: KanbanerModel) -> [KanbanerModel.ProjectNode] {
+        let q = projectSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return board.hiddenProjectTree }
+        return filteredProjectNodes(board).filter { $0.hidden }
+    }
+
+    private var hiddenProjectsDisclosure: some View {
+        Button {
+            hiddenProjectsExpanded.toggle()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: hiddenProjectsExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                Text("Hidden Projects")
+                Spacer()
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(fg.opacity(0.48))
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .overlay(alignment: .top) { Divider().overlay(fg.opacity(0.08)) }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func projectRow(_ node: KanbanerModel.ProjectNode, board: KanbanerModel) -> some View {
+        let project = node.project
         let selected = project.id == board.selectedProjectId
         return Button {
             showingProjectPicker = false
@@ -347,11 +395,11 @@ struct KanbanerView: View {
             }
         } label: {
             HStack(spacing: 10) {
-                projectIcon(project)
+                projectTreeGlyph(node)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(project.name)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(fg)
+                        .font(.system(size: node.depth > 0 ? 12 : 13, weight: .medium))
+                        .foregroundStyle(fg.opacity(selected ? 1 : node.hidden ? 0.48 : node.depth > 0 ? 0.62 : 0.92))
                         .lineLimit(1)
                     if let subtitle = projectSubtitle(project) {
                         Text(subtitle)
@@ -367,11 +415,19 @@ struct KanbanerView: View {
                         .foregroundStyle(.tint)
                 }
             }
-            .padding(.horizontal, 10).padding(.vertical, 8)
+            .padding(.leading, 10 + CGFloat(node.depth) * 16).padding(.trailing, 10).padding(.vertical, 8)
             .background(selected ? Color.accentColor.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func projectTreeGlyph(_ node: KanbanerModel.ProjectNode) -> some View {
+        Text(node.depth > 0 ? "◈" : "▦")
+            .font(.system(size: node.depth > 0 ? 10 : 11, weight: .semibold))
+            .foregroundStyle(fg.opacity(node.hidden ? 0.36 : 0.46))
+            .frame(width: 30, height: 30)
+            .background(fg.opacity(node.depth == 0 ? 0.07 : 0.035), in: RoundedRectangle(cornerRadius: 7))
     }
 
     private func projectIcon(_ project: PmProject) -> some View {

@@ -1,5 +1,8 @@
 import SwiftUI
 import ScryerCore
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: Interaction
 
@@ -171,6 +174,7 @@ struct ScryerPickerView: View {
         #if os(macOS)
         .frame(width: 760, height: 540)
         #endif
+        .dismissOnEscape { dismiss() }
         .task { await loadProjects() }
     }
 
@@ -403,6 +407,7 @@ struct ScryerCover<Content: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .preferredColorScheme(model.theme.isDark ? .dark : .light)
+        .dismissOnEscape { isPresented = false }
     }
 }
 /// Centered, near-full-height panel for compact utility modals. Unlike `ScryerCover`, this
@@ -432,6 +437,7 @@ struct CenteredModalCover<Content: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .preferredColorScheme(model.theme.isDark ? .dark : .light)
+        .dismissOnEscape { isPresented = false }
     }
 }
 #endif
@@ -488,7 +494,10 @@ extension View {
     }
 
     /// Native grouped list styling for modal content.
-    @ViewBuilder
+    func dismissOnEscape(_ action: @escaping () -> Void) -> some View {
+        modifier(DismissOnEscapeModifier(action: action))
+    }
+
     func modalList() -> some View {
         #if os(iOS)
         listStyle(.insetGrouped)
@@ -497,6 +506,43 @@ extension View {
         listStyle(.inset)
             .scrollContentBackground(.hidden)
         #endif
+    }
+}
+
+private struct DismissOnEscapeModifier: ViewModifier {
+    let action: () -> Void
+    #if os(macOS)
+    @State private var monitor: Any?
+    #endif
+
+    func body(content: Content) -> some View {
+        content
+            // Covers system sheets / iPad hardware keyboards when SwiftUI owns focus.
+            .overlay(alignment: .topLeading) {
+                Button("Dismiss", action: action)
+                    .keyboardShortcut(.cancelAction)
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            }
+            #if os(macOS)
+            // Overlays/drawers do not necessarily become focused sheets, so catch Escape
+            // at the window level while the modal/drawer is visible.
+            .onAppear {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                    if event.keyCode == 53 && flags.isEmpty {
+                        action()
+                        return nil
+                    }
+                    return event
+                }
+            }
+            .onDisappear {
+                if let monitor { NSEvent.removeMonitor(monitor) }
+                monitor = nil
+            }
+            #endif
     }
 }
 
@@ -528,6 +574,7 @@ private struct ModalChrome: ViewModifier {
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(6)   // square off the system sheet's large default radius
         .preferredColorScheme(model.theme.isDark ? .dark : .light)
+        .dismissOnEscape { dismiss() }
         #else
         VStack(spacing: 0) {
             modalHeader(title, systemImage: systemImage) { dismiss() }
@@ -540,6 +587,7 @@ private struct ModalChrome: ViewModifier {
         .foregroundStyle(fg)
         .frame(width: width, height: height)
         .preferredColorScheme(model.theme.isDark ? .dark : .light)
+        .dismissOnEscape { dismiss() }
         #endif
     }
 }

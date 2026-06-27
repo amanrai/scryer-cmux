@@ -110,6 +110,13 @@ public final class GhosttyVTEngine: TerminalEngine {
 
     private func withVtUnused() -> Int { 0 }
 
+    public var alternateScreenActive: Bool {
+        guard let terminal else { return false }
+        var enabled = false
+        _ = ghostty_terminal_mode_get(terminal, ghostty_mode_new(1049, false), &enabled)
+        return enabled
+    }
+
     // MARK: TerminalEngine
 
     public func resize(cols: Int, rows: Int, cellWidth: Double, cellHeight: Double) {

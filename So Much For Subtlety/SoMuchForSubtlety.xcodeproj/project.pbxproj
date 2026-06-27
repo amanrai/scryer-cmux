@@ -48,6 +48,8 @@
 		CB0000000000000000002003 /* KanbanerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000002001 /* KanbanerView.swift */; };
 		CB0000000000000000003002 /* KanbanerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000003001 /* KanbanerDetailView.swift */; };
 		CB0000000000000000003003 /* KanbanerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000003001 /* KanbanerDetailView.swift */; };
+		CB0000000000000000004002 /* ProjectOrganizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000004001 /* ProjectOrganizerView.swift */; };
+		CB0000000000000000004003 /* ProjectOrganizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB0000000000000000004001 /* ProjectOrganizerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +73,7 @@
 		CB0000000000000000001001 /* KanbanerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanbaner/KanbanerModel.swift; sourceTree = "<group>"; };
 		CB0000000000000000002001 /* KanbanerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanbaner/KanbanerView.swift; sourceTree = "<group>"; };
 		CB0000000000000000003001 /* KanbanerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kanbaner/KanbanerDetailView.swift; sourceTree = "<group>"; };
+		CB0000000000000000004001 /* ProjectOrganizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOrganizerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -135,6 +138,7 @@
 				CB0000000000000000001001 /* KanbanerModel.swift */,
 				CB0000000000000000002001 /* KanbanerView.swift */,
 				CB0000000000000000003001 /* KanbanerDetailView.swift */,
+				CB0000000000000000004001 /* ProjectOrganizerView.swift */,
 			);
 			path = SoMuchForSubtlety;
 			sourceTree = "<group>";
@@ -265,6 +269,7 @@
 				CB0000000000000000001002 /* KanbanerModel.swift in Sources */,
 				CB0000000000000000002002 /* KanbanerView.swift in Sources */,
 				CB0000000000000000003002 /* KanbanerDetailView.swift in Sources */,
+				CB0000000000000000004002 /* ProjectOrganizerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,6 +294,7 @@
 				CB0000000000000000001003 /* KanbanerModel.swift in Sources */,
 				CB0000000000000000002003 /* KanbanerView.swift in Sources */,
 				CB0000000000000000003003 /* KanbanerDetailView.swift in Sources */,
+				CB0000000000000000004003 /* ProjectOrganizerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

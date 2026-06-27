@@ -143,6 +143,7 @@ public protocol TerminalEngineDelegate: AnyObject {
 /// emulation, per the product decision — no SwiftTerm fallback).
 public protocol TerminalEngine: AnyObject {
     var delegate: TerminalEngineDelegate? { get set }
+    var alternateScreenActive: Bool { get }
 
     /// `cellWidth`/`cellHeight` in device pixels — libghostty needs them for Kitty
     /// graphics and mouse-pixel reporting.

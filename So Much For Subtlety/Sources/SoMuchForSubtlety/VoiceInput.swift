@@ -208,6 +208,7 @@ struct DictationView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .dismissOnEscape { dismiss() }
         .onAppear { voice.silenceTimeout = silenceTimeout; voice.preloadModel(); Task { await voice.start() } }
         .onDisappear { voice.reset() }
     }

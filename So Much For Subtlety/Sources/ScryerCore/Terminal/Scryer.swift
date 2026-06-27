@@ -172,7 +172,26 @@ public struct PmProject: Decodable, Identifiable, Sendable {
     public let id: String
     public let name: String
     public let slug: String?
+    public let description_md: String?
     public let relative_repo_path: String?
+    public let remote_repo_url: String?
+    public let parent_project_id: String?
+    public let created_at: String?
+    public let updated_at: String?
+
+    public init(id: String, name: String, slug: String? = nil, description_md: String? = nil,
+                relative_repo_path: String? = nil, remote_repo_url: String? = nil,
+                parent_project_id: String? = nil, created_at: String? = nil, updated_at: String? = nil) {
+        self.id = id
+        self.name = name
+        self.slug = slug
+        self.description_md = description_md
+        self.relative_repo_path = relative_repo_path
+        self.remote_repo_url = remote_repo_url
+        self.parent_project_id = parent_project_id
+        self.created_at = created_at
+        self.updated_at = updated_at
+    }
 }
 
 public struct PmTask: Decodable, Identifiable, Sendable {
@@ -180,6 +199,8 @@ public struct PmTask: Decodable, Identifiable, Sendable {
     public let title: String
     public let status: String?
     public let updated_at: String?
+    public let created_at: String?
+    public let deleted_at: String?
     public let description_md: String?
     // Board fields (all optional so the existing Scryer picker decode is unaffected).
     public let display_order: Int?
@@ -189,6 +210,7 @@ public struct PmTask: Decodable, Identifiable, Sendable {
     public let tags: [PmTag]?
 
     public init(id: String, title: String, status: String? = nil, updated_at: String? = nil,
+                created_at: String? = nil, deleted_at: String? = nil,
                 description_md: String? = nil, display_order: Int? = nil,
                 task_type_id: String? = nil, parent_task_id: String? = nil,
                 project_id: String? = nil, tags: [PmTag]? = nil) {
@@ -196,6 +218,8 @@ public struct PmTask: Decodable, Identifiable, Sendable {
         self.title = title
         self.status = status
         self.updated_at = updated_at
+        self.created_at = created_at
+        self.deleted_at = deleted_at
         self.description_md = description_md
         self.display_order = display_order
         self.task_type_id = task_type_id
@@ -209,6 +233,7 @@ public struct PmTask: Decodable, Identifiable, Sendable {
     public func with(status newStatus: String? = nil, displayOrder newOrder: Int? = nil,
                      projectId newProject: String? = nil) -> PmTask {
         PmTask(id: id, title: title, status: newStatus ?? status, updated_at: updated_at,
+               created_at: created_at, deleted_at: deleted_at,
                description_md: description_md, display_order: newOrder ?? display_order,
                task_type_id: task_type_id, parent_task_id: parent_task_id,
                project_id: newProject ?? project_id, tags: tags)

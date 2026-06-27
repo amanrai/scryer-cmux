@@ -38,6 +38,7 @@ struct SettingsView: View {
     var body: some View {
         content
             .preferredColorScheme(model.theme.isDark ? .dark : .light)
+            .dismissOnEscape { dismiss() }
             .onAppear { if selectedBackendId.isEmpty { selectedBackendId = backendId } }
     }
 

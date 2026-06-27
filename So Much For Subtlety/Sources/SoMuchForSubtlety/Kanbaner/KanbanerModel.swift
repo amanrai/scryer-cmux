@@ -12,6 +12,7 @@ final class KanbanerModel {
     var selectedProjectId: String?
     var tasks: [PmTask] = []
     var taskTypes: [PmTaskType] = []
+    var projectTouchTimes: [String: TimeInterval] = [:]
     var loadingProjects = false
     var loadingTasks = false
     var error: String?
@@ -23,6 +24,23 @@ final class KanbanerModel {
         let id = UUID()
         let taskId: String?   // nil = project root
         let name: String
+    }
+
+    struct ProjectNode: Identifiable, Hashable {
+        var id: String { project.id }
+        let project: PmProject
+        let depth: Int
+        let hidden: Bool
+
+        static func == (lhs: ProjectNode, rhs: ProjectNode) -> Bool {
+            lhs.project.id == rhs.project.id && lhs.depth == rhs.depth && lhs.hidden == rhs.hidden
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(project.id)
+            hasher.combine(depth)
+            hasher.combine(hidden)
+        }
     }
 
     private var client: PmClient { PmClient(endpoint: endpoint) }
@@ -56,6 +74,41 @@ final class KanbanerModel {
     }
 
     var selectedProject: PmProject? { projects.first { $0.id == selectedProjectId } }
+
+    var projectTree: [ProjectNode] {
+        let byId = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+        var byParent: [String?: [PmProject]] = [:]
+        for project in projects { byParent[project.parent_project_id, default: []].append(project) }
+
+        func sorted(_ list: [PmProject]) -> [PmProject] {
+            list.sorted { a, b in
+                let diff = (projectTouchTimes[b.id] ?? 0) - (projectTouchTimes[a.id] ?? 0)
+                if diff != 0 { return diff > 0 }
+                return a.name.localizedCompare(b.name) == .orderedAscending
+            }
+        }
+
+        func isHidden(_ project: PmProject) -> Bool {
+            if project.name.hasPrefix("~") { return true }
+            if let parentId = project.parent_project_id, let parent = byId[parentId] {
+                return parent.name.hasPrefix("~")
+            }
+            return false
+        }
+
+        var result: [ProjectNode] = []
+        func visit(parentId: String?, depth: Int) {
+            for project in sorted(byParent[parentId] ?? []) {
+                result.append(ProjectNode(project: project, depth: depth, hidden: isHidden(project)))
+                visit(parentId: project.id, depth: depth + 1)
+            }
+        }
+        visit(parentId: nil, depth: 0)
+        return result
+    }
+
+    var visibleProjectTree: [ProjectNode] { projectTree.filter { !$0.hidden } }
+    var hiddenProjectTree: [ProjectNode] { projectTree.filter(\.hidden) }
 
     /// Current drill scope: nil = project root, else the feature task whose children we show.
     var currentParentId: String? { navStack.last?.taskId }
@@ -112,10 +165,11 @@ final class KanbanerModel {
         loadingProjects = true; defer { loadingProjects = false }
         do {
             let loaded = try await client.listProjects()
-            projects = loaded.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            projects = loaded
+            await loadProjectTouchTimes(for: loaded)
             error = nil
             if selectedProjectId == nil || !projects.contains(where: { $0.id == selectedProjectId }) {
-                selectedProjectId = projects.first?.id
+                selectedProjectId = visibleProjectTree.first?.project.id ?? projectTree.first?.project.id
             }
             setRootCrumb()
             if let id = selectedProjectId { await loadTasks(projectId: id) }
@@ -144,6 +198,60 @@ final class KanbanerModel {
         selectedProjectId = projectId
         if tasks.first(where: { $0.id == task.id }) == nil { tasks = [task] }
         await loadTasks(projectId: projectId)
+    }
+
+    private func loadProjectTouchTimes(for projects: [PmProject]) async {
+        var tasksByProject: [String: [PmTask]] = [:]
+        if let allTasks = try? await client.listTasks() {
+            for task in allTasks {
+                guard let projectId = task.project_id else { continue }
+                tasksByProject[projectId, default: []].append(task)
+            }
+        }
+
+        var deletedByProject: [String: [PmTask]] = [:]
+        await withTaskGroup(of: (String, [PmTask]).self) { group in
+            for project in projects {
+                group.addTask { [client] in
+                    let deleted = (try? await client.deletedTasks(projectId: project.id)) ?? []
+                    return (project.id, deleted)
+                }
+            }
+            for await (projectId, deleted) in group { deletedByProject[projectId] = deleted }
+        }
+
+        projectTouchTimes = Dictionary(uniqueKeysWithValues: projects.map { project in
+            let times = [Self.time(project.updated_at), Self.time(project.created_at)]
+                + (tasksByProject[project.id] ?? []).map(Self.taskTouchTime)
+                + (deletedByProject[project.id] ?? []).map(Self.taskTouchTime)
+            return (project.id, times.max() ?? 0)
+        })
+    }
+
+    private static func taskTouchTime(_ task: PmTask) -> TimeInterval {
+        max(time(task.deleted_at), time(task.updated_at), time(task.created_at))
+    }
+
+    private static func time(_ value: String?) -> TimeInterval {
+        guard let value, !value.isEmpty else { return 0 }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let isoWithFractional = ISO8601DateFormatter()
+        isoWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = isoWithFractional.date(from: trimmed) { return date.timeIntervalSince1970 }
+
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        if let date = iso.date(from: trimmed) { return date.timeIntervalSince1970 }
+
+        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXXXX", "yyyy-MM-dd'T'HH:mm:ssXXXXX", "yyyy-MM-dd'T'HH:mm:ss.SSSSSS", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss.SSSSSS", "yyyy-MM-dd HH:mm:ss"] {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = format
+            if let date = formatter.date(from: trimmed) { return date.timeIntervalSince1970 }
+        }
+        return 0
     }
 
     private func loadTasks(projectId: String) async {

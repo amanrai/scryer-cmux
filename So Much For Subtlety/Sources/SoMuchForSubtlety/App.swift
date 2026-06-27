@@ -59,8 +59,14 @@ struct RootView: View {
                     .environment(model)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
+            if model.showingProjectOrganizer, case .attached = model.phase {
+                ProjectOrganizerView()
+                    .environment(model)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
         .animation(.easeOut(duration: 0.22), value: model.showingKanbaner)
+        .animation(.easeOut(duration: 0.22), value: model.showingProjectOrganizer)
         .preferredColorScheme(model.theme.isDark ? .dark : .light)
         #if os(macOS)
         .background(WindowAccessor { window in

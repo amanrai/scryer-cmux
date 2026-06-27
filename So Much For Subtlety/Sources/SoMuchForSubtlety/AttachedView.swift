@@ -212,10 +212,16 @@ struct AttachedView: View {
         #endif
         #if os(iOS)
         .fullScreenCover(isPresented: $showingMachinePicker) {
-            CenteredModalCover(isPresented: $showingMachinePicker, width: 560) {
+            CenteredModalCover(isPresented: $showingMachinePicker, width: 560, heightRatio: 0.56) {
                 MachinePickerSheet(currentBackendId: backend.id, onSelect: { selected in
                     if selected.id != backend.id { model.select(selected) }
-                }, onKanbaner: { model.showingKanbaner = true })
+                }, onKanbaner: {
+                    model.showingProjectOrganizer = false
+                    model.showingKanbaner = true
+                }, onProjectOrganizer: {
+                    model.showingKanbaner = false
+                    model.showingProjectOrganizer = true
+                })
                 .environment(model)
             }
             .presentationBackground(.clear)
@@ -224,7 +230,13 @@ struct AttachedView: View {
         .sheet(isPresented: $showingMachinePicker) {
             MachinePickerSheet(currentBackendId: backend.id, onSelect: { selected in
                 if selected.id != backend.id { model.select(selected) }
-            }, onKanbaner: { model.showingKanbaner = true })
+            }, onKanbaner: {
+                model.showingProjectOrganizer = false
+                model.showingKanbaner = true
+            }, onProjectOrganizer: {
+                model.showingKanbaner = false
+                model.showingProjectOrganizer = true
+            })
             .environment(model)
         }
         #endif
@@ -338,7 +350,8 @@ struct AttachedView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Switch machine")
+            .keyboardShortcut("k", modifiers: .command)
+            .help("Switch backend (⌘K)")
 
             Spacer()
 
@@ -536,6 +549,7 @@ struct AttachedView: View {
                     await board.reload()
                 }
             }
+            .dismissOnEscape { closeTicketDetail() }
             #if os(macOS)
             .background(WindowBackgroundDragSetter(isMovable: false))
             #endif
@@ -571,7 +585,9 @@ struct AttachedView: View {
     // re-render. Resolving here ensures the bar observes it from the first pass.
     private var activeController: TerminalController? {
         guard let paneId = selectedPaneId, let endpoint = model.endpoint else { return nil }
-        return store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id, fontSize: CGFloat(model.fontSize), theme: model.theme.terminal)
+        return store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id,
+                                fontSize: CGFloat(model.fontSize), theme: model.theme.terminal,
+                                onCommandK: { showingMachinePicker = true })
     }
 
     /// Whether the live terminal socket is up. Drives input gating (keyboard/mic) so a dead
@@ -667,7 +683,9 @@ struct AttachedView: View {
         if let paneId = selectedPaneId,
            let endpoint = model.endpoint,
            let pane = state?.workspaces.flatMap(\.panes).first(where: { $0.id == paneId }),
-           let controller = store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id, fontSize: CGFloat(model.fontSize), theme: model.theme.terminal) {
+           let controller = store.controller(paneId: paneId, endpoint: endpoint, backendId: backend.id,
+                                             fontSize: CGFloat(model.fontSize), theme: model.theme.terminal,
+                                             onCommandK: { showingMachinePicker = true }) {
             TerminalHostView(controller: controller, fallbackTitle: pane.title)
                 .id(paneId)
         } else {

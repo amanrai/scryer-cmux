@@ -41,6 +41,7 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
     private(set) var unreadUpdates = 0
     /// Set by the view while the activity panel is open; suppresses unread counting.
     var activityVisible = false
+    var onCommandK: (() -> Void)?
 
     // Dedup, mirroring gateway-ui's seen/dismissed Sets.
     private var seenUpdateIds: Set<String> = []
@@ -82,7 +83,7 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
         view.onSpecialKey = { [weak self] key, mods in self?.handleSpecialKey(key, modifiers: mods) }
         #endif
         view.onGridSizeChange = { [weak self] cols, rows in self?.handleResize(cols: cols, rows: rows) }
-        view.onScroll = { [weak self] deltaRows in self?.engine.scrollViewport(deltaRows: deltaRows) }
+        view.onScroll = { [weak self] deltaRows in self?.handleScroll(deltaRows: deltaRows) }
         view.onPaste = { [weak self] text in self?.handlePaste(text) }
 
         session.connect()
@@ -150,6 +151,10 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
     #if os(macOS)
     private func handleKey(_ event: NSEvent) {
         let flags = event.modifierFlags
+        if flags.contains(.command), event.charactersIgnoringModifiers?.lowercased() == "k" {
+            onCommandK?()
+            return
+        }
         if flags.contains(.control), !flags.contains(.command), !flags.contains(.option),
            (event.charactersIgnoringModifiers?.lowercased() == "c" || event.keyCode == 0x08) {
             session.sendInputBytes([0x03])
@@ -177,6 +182,16 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
     private func handleResize(cols: Int, rows: Int) {
         engine.resize(cols: cols, rows: rows, cellWidth: Double(metalView.cellWidth), cellHeight: Double(metalView.cellHeight))
         session.resize(cols: cols, rows: rows)
+    }
+
+    private func handleScroll(deltaRows: Int) {
+        guard deltaRows != 0 else { return }
+        if engine.alternateScreenActive {
+            let key: TerminalKey = deltaRows < 0 ? .arrowUp : .arrowDown
+            for _ in 0..<min(abs(deltaRows), 8) { type(key) }
+        } else {
+            engine.scrollViewport(deltaRows: deltaRows)
+        }
     }
 
     private func pushSnapshot() {
@@ -366,9 +381,14 @@ final class TerminalController: TerminalSessionDelegate, @MainActor TerminalEngi
 final class TerminalStore {
     private var controllers: [String: TerminalController] = [:]
 
-    func controller(paneId: String, endpoint: GatewayEndpoint, backendId: String?, fontSize: CGFloat, theme: TerminalTheme) -> TerminalController? {
-        if let existing = controllers[paneId] { return existing }
+    func controller(paneId: String, endpoint: GatewayEndpoint, backendId: String?, fontSize: CGFloat,
+                    theme: TerminalTheme, onCommandK: (() -> Void)? = nil) -> TerminalController? {
+        if let existing = controllers[paneId] {
+            existing.onCommandK = onCommandK
+            return existing
+        }
         guard let created = TerminalController(endpoint: endpoint, backendId: backendId, paneId: paneId, fontSize: fontSize, theme: theme) else { return nil }
+        created.onCommandK = onCommandK
         controllers[paneId] = created
         return created
     }

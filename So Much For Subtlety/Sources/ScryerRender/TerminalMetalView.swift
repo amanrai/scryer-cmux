@@ -104,6 +104,7 @@ public final class TerminalMetalView: MTKView, MTKViewDelegate {
     private var surface: TerminalRenderSurface!
     private var lastPasteAt: TimeInterval = 0
     private var blinkTimer: Timer?
+    private var pendingGridReport: DispatchWorkItem?
 
     public init?(fontSize: CGFloat = 13) {
         guard let device = MTLCreateSystemDefaultDevice() else { return nil }
@@ -124,7 +125,10 @@ public final class TerminalMetalView: MTKView, MTKViewDelegate {
     @available(*, unavailable)
     required init(coder: NSCoder) { fatalError("init(coder:) not supported") }
 
-    deinit { blinkTimer?.invalidate() }
+    deinit {
+        blinkTimer?.invalidate()
+        pendingGridReport?.cancel()
+    }
 
     public var cellWidth: Int { surface.cellWidth }
     public var cellHeight: Int { surface.cellHeight }
@@ -154,7 +158,7 @@ public final class TerminalMetalView: MTKView, MTKViewDelegate {
     }
 
     private func reportGridSizeIfChanged() {
-        guard window != nil, bounds.width >= 1, bounds.height >= 1 else { return }
+        guard surface != nil, window != nil, bounds.width >= 1, bounds.height >= 1 else { return }
         let (cols, rows) = currentGridSize()
         guard cols != surface.lastReportedCols || rows != surface.lastReportedRows else { return }
         surface.lastReportedCols = cols
@@ -162,8 +166,37 @@ public final class TerminalMetalView: MTKView, MTKViewDelegate {
         onGridSizeChange?(cols, rows)
     }
 
-    public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) { reportGridSizeIfChanged() }
+    private func scheduleGridSizeReport(after delay: TimeInterval = 0.09) {
+        pendingGridReport?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.reportGridSizeIfChanged() }
+        pendingGridReport = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        // Coalesce live window-resize/layout churn. TUIs repaint on SIGWINCH, so sending
+        // every transient size makes the terminal flash/repaint repeatedly while dragging.
+        scheduleGridSizeReport()
+    }
     public func draw(in view: MTKView) { surface.draw(in: view) }
+
+    public override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        scheduleGridSizeReport()
+    }
+
+    public override func layout() {
+        super.layout()
+        scheduleGridSizeReport()
+    }
+
+    public override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        surface.lastReportedCols = 0
+        surface.lastReportedRows = 0
+        scheduleGridSizeReport(after: 0)
+        needsDisplay = true
+    }
 
     public override var acceptsFirstResponder: Bool { true }
     public override func keyDown(with event: NSEvent) { onKeyDown?(event) }

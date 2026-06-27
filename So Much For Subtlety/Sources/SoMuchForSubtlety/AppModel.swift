@@ -83,8 +83,9 @@ final class AppModel {
     /// flow is being reworked.
     let interactions = InteractionStore()
 
-    /// Whether the Kanbaner board is currently shown (over the attached terminal screen).
+    /// Whether PM workspace screens are currently shown over the attached terminal screen.
     var showingKanbaner = false
+    var showingProjectOrganizer = false
 
     /// The PM ticket set via the Scryer picker (`/pp` + `/tp`). Kept per-pane for immediate
     /// session UI and persisted per producer `from` so returning to the same agent session

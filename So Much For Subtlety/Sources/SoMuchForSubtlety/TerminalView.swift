@@ -13,6 +13,7 @@ struct TerminalHostView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             TerminalSurface(view: controller.metalView)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(hex: model.theme.terminal.background.hex) ?? .black)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -60,8 +61,14 @@ import AppKit
 
 private struct TerminalSurface: NSViewRepresentable {
     let view: TerminalMetalView
-    func makeNSView(context: Context) -> TerminalMetalView { view }
-    func updateNSView(_ nsView: TerminalMetalView, context: Context) {}
+    func makeNSView(context: Context) -> TerminalMetalView {
+        view.autoresizingMask = [.width, .height]
+        return view
+    }
+    func updateNSView(_ nsView: TerminalMetalView, context: Context) {
+        nsView.autoresizingMask = [.width, .height]
+        nsView.needsDisplay = true
+    }
 }
 #else
 import UIKit
